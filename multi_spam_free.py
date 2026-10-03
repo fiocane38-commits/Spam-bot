@@ -442,12 +442,9 @@ def spam_discord():
         return
 
     try:
-        intents = discord.Intents.default()
-        intents.message_content = True
-        intents.guilds = True
-        intents.members = False
-
-        bot = commands.Bot(command_prefix="!", self_bot=True, intents=intents)
+        # NIENTE Intents: self-bot su discord.py-self non li usa
+        bot = commands.Bot(command_prefix="!", self_bot=True)
+        print("[Discord] Bot creato (senza Intents)")
 
         def get_target_channels():
             channels = []
