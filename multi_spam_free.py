@@ -7,9 +7,6 @@ import random
 import asyncio
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import os
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
 # ============================================================
@@ -1411,6 +1408,30 @@ def spam_discord():
     bot.run(TOKEN)
 
 if __name__ == "__main__":
+    import os
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    def _health():
+        port = int(os.environ.get("PORT", 10000))
+
+        class H(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+            def log_message(self, *args):
+                pass
+
+        print(f"[Health] in ascolto su 0.0.0.0:{port}")
+        HTTPServer(("0.0.0.0", port), H).serve_forever()
+
+    threading.Thread(target=_health, daemon=True).start()
+    time.sleep(1)
+
+    print("=== BOT MULTI-SOCIAL ATTIVO ===")
+    # ... resto del while True come ora ...
     print("=== BOT MULTI-SOCIAL ATTIVO ===")
     print("Ctrl+C per fermarlo\n")
 
@@ -1496,21 +1517,3 @@ if __name__ == "__main__":
         print("Aspetto 15 minuti...\n")
         ciclo += 1
         time.sleep(900)
-
-def _health():
-    port = int(os.environ.get("PORT", 10000))
-
-    class H(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"ok")
-
-        def log_message(self, *args):
-            pass
-
-    HTTPServer(("0.0.0.0", port), H).serve_forever()
-
-if __name__ == "__main__":
-    threading.Thread(target=_health, daemon=True).start()
-    # qui il tuo while True del bot...
