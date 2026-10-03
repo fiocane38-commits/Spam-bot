@@ -8,6 +8,7 @@ import random
 import asyncio
 import json
 import traceback
+import threading
 import discord
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -152,6 +153,24 @@ def _load_json_cookies(path, domain_substr):
     return cookies
 
 # ============================================================
+# WRAPPER PER THREAD
+# ============================================================
+def run_spam_in_thread(func, *args, **kwargs):
+    """Esegue una funzione di spam in un thread separato con timeout."""
+    def target():
+        try:
+            func(*args, **kwargs)
+        except Exception as e:
+            print(f"[Thread] Errore in {func.__name__}: {e}")
+            traceback.print_exc()
+
+    t = threading.Thread(target=target)
+    t.start()
+    t.join(timeout=60)  # Aspetta massimo 60 secondi
+    if t.is_alive():
+        print(f"[Thread] Timeout per {func.__name__} (60s), passo avanti")
+
+# ============================================================
 # X (Playwright + cookies)
 # ============================================================
 def spam_x_free(count=2, delay_min=120, delay_max=300):
@@ -261,120 +280,13 @@ def follow_x_random(count=5, delay_min=40, delay_max=90):
         traceback.print_exc()
 
 # ============================================================
-# INSTAGRAM (con protezione totale)
+# INSTAGRAM (commentato: IP Render bloccato)
 # ============================================================
-def spam_instagram(count=1, delay=600):
-    print("[Instagram] inizio...")
-    try:
-        from instagrapi import Client
-    except ImportError:
-        print("[Instagram] instagrapi non installato. Salto.")
-        return
-
-    if not IG_SESSIONID:
-        print("[Instagram] IG_SESSIONID non impostato. Salto.")
-        return
-
-    try:
-        cl = Client()
-        try:
-            cl.set_app("448.0.0.0.20")
-        except Exception:
-            pass
-
-        # Prova a caricare i cookie esportati se disponibili
-        if IG_COOKIES_JSON:
-            try:
-                cookies_list = json.loads(IG_COOKIES_JSON)
-                cookie_dict = {}
-                for c in cookies_list:
-                    if "instagram.com" in c.get("domain", ""):
-                        cookie_dict[c["name"]] = c["value"]
-                if cookie_dict:
-                    cl.set_cookies(cookie_dict)
-                    print("[Instagram] Cookie esportati caricati")
-            except Exception as e:
-                print(f"[Instagram] Errore parsing IG_COOKIES: {e}")
-
-        # Prova il login
-        try:
-            cl.login_by_sessionid(IG_SESSIONID)
-            print("[Instagram] login ok (sessionid)")
-            cl.dump_settings("ig_session.json")
-        except Exception as e:
-            print(f"[Instagram] login fallito: {e}")
-            print("[Instagram] Salto questo ciclo.")
-            return
-
-        # Prova a postare
-        for i in range(count):
-            try:
-                if not Path("promo.jpg").exists():
-                    print("[Instagram] manca promo.jpg. Salto post.")
-                    break
-                media = cl.photo_upload(path="promo.jpg", caption=random.choice(MESSAGES))
-                print(f"[Instagram] postato → {media.code}")
-            except Exception as e:
-                print(f"[Instagram] errore post: {e}")
-            time.sleep(delay)
-        print("[Instagram] finito")
-    except Exception as e:
-        print(f"[Instagram] ERRORE GENERALE: {e}")
-        traceback.print_exc()
-
-def follow_instagram_random(count=5, delay_min=40, delay_max=90):
-    print("[IG Follow random] inizio...")
-    try:
-        from instagrapi import Client
-    except ImportError:
-        print("[IG Follow random] instagrapi non installato. Salto.")
-        return
-
-    if not IG_SESSIONID:
-        print("[IG Follow random] IG_SESSIONID non impostato. Salto.")
-        return
-
-    try:
-        cl = Client()
-        try:
-            cl.set_app("448.0.0.0.20")
-        except Exception:
-            pass
-
-        try:
-            if Path("ig_session.json").exists():
-                cl.load_settings("ig_session.json")
-            cl.login_by_sessionid(IG_SESSIONID)
-        except Exception as e:
-            print(f"[IG Follow random] login fallito: {e}")
-            return
-
-        hashtags = ["crypto", "memecoin", "ai", "solana", "trading", "tech", "coding", "nft", "bitcoin", "web3"]
-        tag = random.choice(hashtags)
-        print(f"[IG Follow random] hashtag #{tag}")
-        try:
-            medias = cl.hashtag_medias_recent(tag, amount=40)
-        except Exception as e:
-            print(f"[IG Follow random] errore hashtag: {e}")
-            return
-
-        user_ids = list({m.user.pk for m in medias if getattr(m, "user", None)})
-        random.shuffle(user_ids)
-        done = 0
-        for uid in user_ids:
-            if done >= count:
-                break
-            try:
-                cl.user_follow(uid)
-                done += 1
-                print(f"[IG Follow random] seguito uid={uid} ({done}/{count})")
-            except Exception as e:
-                print(f"[IG Follow random] skip {uid}: {e}")
-            time.sleep(random.uniform(delay_min, delay_max))
-        print(f"[IG Follow random] finito ({done})")
-    except Exception as e:
-        print(f"[IG Follow random] ERRORE GENERALE: {e}")
-        traceback.print_exc()
+# def spam_instagram(count=1, delay=600):
+#     ... (codice commentato)
+#
+# def follow_instagram_random(count=5, delay_min=40, delay_max=90):
+#     ... (codice commentato)
 
 # ============================================================
 # REDDIT (Playwright + cookies)
@@ -442,7 +354,6 @@ def spam_discord():
         return
 
     try:
-        # NIENTE Intents: self-bot su discord.py-self non li usa
         bot = commands.Bot(command_prefix="!", self_bot=True)
         print("[Discord] Bot creato (senza Intents)")
 
@@ -751,17 +662,6 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
         print(f"[TT Follow random] ERRORE: {e}")
         traceback.print_exc()
 
-class H(BaseHTTPRequestHandler):
-    def do_GET(self):
-        print(f"[Health] GET ricevuto")
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"ok")
-
-    def do_HEAD(self):  # Aggiungi questo metodo
-        print(f"[Health] HEAD ricevuto")
-        self.send_response(200)
-        self.end_headers()
 # ============================================================
 # MAIN - LOOP CONTINUO (NON SI FERMA MAI)
 # ============================================================
@@ -771,13 +671,22 @@ if __name__ == "__main__":
 
     def _health():
         port = int(os.environ.get("PORT", 10000))
+
         class H(BaseHTTPRequestHandler):
             def do_GET(self):
+                print("[Health] GET ricevuto")
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(b"ok")
+
+            def do_HEAD(self):
+                print("[Health] HEAD ricevuto")
+                self.send_response(200)
+                self.end_headers()
+
             def log_message(self, *args):
                 pass
+
         print(f"[Health] in ascolto su 0.0.0.0:{port}")
         HTTPServer(("0.0.0.0", port), H).serve_forever()
 
@@ -791,22 +700,25 @@ if __name__ == "__main__":
     while True:
         print(f"\n========== CICLO {ciclo} ==========")
 
-        # Ogni blocco ha il suo try/except per non bloccare il ciclo
+        # X POST
         try:
             print("\n--- X POST ---")
-            spam_x_free(count=1, delay_min=90, delay_max=180)
+            run_spam_in_thread(spam_x_free, count=1, delay_min=90, delay_max=180)
         except Exception as e:
             print(f"[X] errore critico: {e}")
 
+        # X FOLLOW RANDOM
         try:
             print("\n--- X FOLLOW RANDOM ---")
-            follow_x_random(count=5)
+            run_spam_in_thread(follow_x_random, count=5)
         except Exception as e:
             print(f"[X Follow] errore critico: {e}")
 
+        # REDDIT
         try:
             print("\n--- REDDIT ---")
-            spam_reddit_free(
+            run_spam_in_thread(
+                spam_reddit_free,
                 subreddits=random.sample(REDDIT_SUB_POOL, k=min(2, len(REDDIT_SUB_POOL))),
                 title="Nuova community + bot",
                 body=PROMO_TEXT,
@@ -814,45 +726,52 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[Reddit] errore critico: {e}")
 
+        # DISCORD
         try:
             print("\n--- DISCORD ---")
-            spam_discord()
+            run_spam_in_thread(spam_discord)
         except Exception as e:
             print(f"[Discord] errore critico: {e}")
 
+        # FACEBOOK
         try:
             print("\n--- FACEBOOK ---")
-            spam_facebook_free(count=1)
+            run_spam_in_thread(spam_facebook_free, count=1)
         except Exception as e:
             print(f"[Facebook] errore critico: {e}")
 
+        # FB FOLLOW RANDOM
         try:
             print("\n--- FB FOLLOW RANDOM ---")
-            follow_facebook_random(count=3)
+            run_spam_in_thread(follow_facebook_random, count=3)
         except Exception as e:
             print(f"[FB Follow] errore critico: {e}")
 
-        try:
-            print("\n--- INSTAGRAM ---")
-            spam_instagram(count=1)
-        except Exception as e:
-            print(f"[Instagram] errore critico: {e}")
+        # INSTAGRAM (commentato: IP Render bloccato)
+        # try:
+        #     print("\n--- INSTAGRAM ---")
+        #     run_spam_in_thread(spam_instagram, count=1)
+        # except Exception as e:
+        #     print(f"[Instagram] errore critico: {e}")
 
-        try:
-            print("\n--- IG FOLLOW RANDOM ---")
-            follow_instagram_random(count=5)
-        except Exception as e:
-            print(f"[IG Follow] errore critico: {e}")
+        # IG FOLLOW RANDOM (commentato)
+        # try:
+        #     print("\n--- IG FOLLOW RANDOM ---")
+        #     run_spam_in_thread(follow_instagram_random, count=5)
+        # except Exception as e:
+        #     print(f"[IG Follow] errore critico: {e}")
 
+        # TIKTOK
         try:
             print("\n--- TIKTOK ---")
-            spam_tiktok_free(video_path="promo.mp4", count=1)
+            run_spam_in_thread(spam_tiktok_free, video_path="promo.mp4", count=1)
         except Exception as e:
             print(f"[TikTok] errore critico: {e}")
 
+        # TT FOLLOW RANDOM
         try:
             print("\n--- TT FOLLOW RANDOM ---")
-            follow_tiktok_random(count=3)
+            run_spam_in_thread(follow_tiktok_random, count=3)
         except Exception as e:
             print(f"[TT Follow] errore critico: {e}")
 
