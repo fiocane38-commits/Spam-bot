@@ -344,7 +344,6 @@ def spam_discord():
     print("[Discord] inizio...")
     try:
         import discord
-        from discord.ext import commands
     except ImportError:
         print("[Discord] discord.py-self non installato. Salto.")
         return
@@ -354,18 +353,17 @@ def spam_discord():
         return
 
     async def _spam():
-        # Crea il client
-        intents = discord.Intents.default()
-        intents.message_content = True
-        intents.guilds = True
-        
-        client = discord.Client(intents=intents, self_bot=True)
+        # Crea il client SENZA Intents (self-bot)
+        try:
+            client = discord.Client(self_bot=True)
+        except TypeError:
+            # Fallback se self_bot non è supportato
+            client = discord.Client()
 
         @client.event
         async def on_ready():
             print(f"[Discord] loggato come {client.user}")
             try:
-                # Raccogli i canali target
                 channels = []
                 if DISCORD_CHANNEL_IDS:
                     for cid in DISCORD_CHANNEL_IDS:
