@@ -8,3 +8,4 @@ pycryptodomex>=3.19.0
 pydantic>=2.0.0
 PySocks>=1.7.0
 curl_cffi>=0.5.0
+praw>=7.7.0
