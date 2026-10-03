@@ -11,11 +11,7 @@ import traceback
 import discord
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import discord
-from discord.ext import commands
 
-# Prova senza Intents
-bot = commands.Bot(command_prefix="!", self_bot=True)
 # ============================================================
 # CONFIGURAZIONE DA VARIABILI D'AMBIENTE (Render)
 # ============================================================
