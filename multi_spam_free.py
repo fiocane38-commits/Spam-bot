@@ -357,7 +357,6 @@ def spam_discord():
         try:
             client = discord.Client(self_bot=True)
         except TypeError:
-            # Fallback se self_bot non è supportato
             client = discord.Client()
 
         @client.event
@@ -404,7 +403,6 @@ def spam_discord():
         except Exception as e:
             print(f"[Discord] Errore avvio: {e}")
 
-    # Esegui in un nuovo event loop
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
