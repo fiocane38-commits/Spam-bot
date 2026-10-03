@@ -852,7 +852,7 @@ DISCORD_USER_TOKEN = ""
 # Target channels (channel IDs as integers)
 # Leave empty list [] to spam every text channel the account can see
 DISCORD_CHANNEL_IDS = [
-     ,
+     
     # 987654321098765432,
 ]
 
