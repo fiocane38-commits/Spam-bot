@@ -2,12 +2,63 @@
 # pip install playwright praw discord.py-self instagrapi requests
 # playwright install chromium
 
+import os
 import time
 import random
 import asyncio
+import json
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
+# ============================================================
+# CONFIGURAZIONE DA VARIABILI D'AMBIENTE (Render)
+# ============================================================
+
+# 1. Leggi tutte le variabili d'ambiente
+DISCORD_CHANNEL_IDS_STR = os.environ.get("DISCORD_CHANNEL_IDS", "")
+DISCORD_GUILD_IDS_STR = os.environ.get("DISCORD_GUILD_IDS", "")
+DISCORD_USER_TOKEN = os.environ.get("DISCORD_USER_TOKEN", "")
+
+IG_SESSIONID = os.environ.get("IG_SESSIONID", "")
+
+# Cookie in formato testo (Netscape o JSON)
+FB_COOKIES = os.environ.get("FB_COOKIES", "")
+REDDIT_COOKIES = os.environ.get("REDDIT_COOKIES", "")
+TIKTOK_COOKIES = os.environ.get("TIKTOK_COOKIES", "")
+X_COOKIES = os.environ.get("X_COOKIES", "")
+
+# 2. Crea i file dei cookie all'avvio (Render non li ha di default)
+def create_cookie_files():
+    """Scrive i cookie dalle variabili d'ambiente nei file fisici."""
+    files_to_create = {
+        "fb_cookies.txt": FB_COOKIES,
+        "reddit_cookies.txt": REDDIT_COOKIES,
+        "tiktok_cookies.txt": TIKTOK_COOKIES,
+        "x_cookies.json": X_COOKIES,
+    }
+    
+    for filename, content in files_to_create.items():
+        if content and content.strip():
+            try:
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print(f"[Setup] Creato file: {filename}")
+            except Exception as e:
+                print(f"[Setup] Errore creazione {filename}: {e}")
+        else:
+            print(f"[Setup] ATTENZIONE: {filename} è vuoto o mancante nelle variabili d'ambiente.")
+
+# Esegui la creazione dei file subito all'avvio
+create_cookie_files()
+
+# 3. Configurazione Discord (conversione stringhe in liste)
+DISCORD_CHANNEL_IDS = []
+if DISCORD_CHANNEL_IDS_STR:
+    DISCORD_CHANNEL_IDS = [int(x.strip()) for x in DISCORD_CHANNEL_IDS_STR.split(",") if x.strip()]
+
+DISCORD_GUILD_IDS = []
+if DISCORD_GUILD_IDS_STR:
+    DISCORD_GUILD_IDS = [int(x.strip()) for x in DISCORD_GUILD_IDS_STR.split(",") if x.strip()]
 
 # ============================================================
 # CONFIG COMUNE
@@ -34,14 +85,12 @@ PROMO_MEMECOIN = """Memecoin season doesn't wait ⚡
 Fill form → pay → token ready. That easy.
 https://launchcoinn.it  💎"""
 
-# Facebook, IG, Discord, Reddit, TikTok → messaggio completo
 MESSAGES = [
     PROMO_TEXT.strip(),
     PROMO_MEMECOIN.strip(),
     PROMO_TEXT.strip() + "\n\n" + PROMO_MEMECOIN.strip(),
 ]
 
-# Solo X → corto
 MESSAGES_X = [
     PROMO_MEMECOIN.strip(),
 ]
@@ -73,20 +122,12 @@ REDDIT_SUB_POOL = [
 ]
 
 FB_FOLLOW_POOL = [
-    # username o ID pubblici (pagine / profili che puoi aprire da browser)
-    "zuck",
-    "meta",
-    "instagram",
-    "nasa",
-    "natgeo",
-    "Nike",
-    "adidas",
-    "spacex",
-    "tesla",
-    "Microsoft",
+    "zuck", "meta", "instagram", "nasa", "natgeo",
+    "Nike", "adidas", "spacex", "tesla", "Microsoft",
 ]
 
 def _load_netscape_cookies(path, domain_substr):
+    """Carica cookie dal formato Netscape (tab-separated)."""
     cookies = []
     p = Path(path)
     if not p.exists():
@@ -115,52 +156,47 @@ def _load_netscape_cookies(path, domain_substr):
                 cookies.append(c)
     return cookies
 
+def _load_json_cookies(path, domain_substr):
+    """Carica cookie dal formato JSON (Cookie-Editor)."""
+    cookies = []
+    p = Path(path)
+    if not p.exists():
+        return cookies
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                for c in data:
+                    domain = c.get("domain", "")
+                    if any(d in domain for d in domain_substr):
+                        cookie = {
+                            "name": c.get("name"),
+                            "value": c.get("value"),
+                            "domain": domain,
+                            "path": c.get("path", "/"),
+                            "secure": c.get("secure", False),
+                        }
+                        if "expirationDate" in c:
+                            cookie["expires"] = int(c["expirationDate"])
+                        cookies.append(cookie)
+    except Exception as e:
+        print(f"[Cookie] Errore parsing JSON {path}: {e}")
+    return cookies
+
 # ============================================================
 # X (Playwright + cookies) - GRATIS
 # ============================================================
-# 1. Loggati su x.com nel browser
-# 2. Installa estensione "Cookie-Editor"
-# 3. Esporta come JSON e salva come x_cookies.json
-
 def spam_x_free(count=2, delay_min=120, delay_max=300):
     print("[X] inizio (browser headless)...")
-    from pathlib import Path
-
-    cookie_file = Path("x_cookies.json")
-    if not cookie_file.exists():
-        print("[X] file non trovato")
+    
+    # Usa il parser JSON per X (Cookie-Editor esporta in JSON)
+    x_cookies = _load_json_cookies("x_cookies.json", ["x.com", "twitter.com"])
+    
+    if not x_cookies:
+        print("[X] Nessun cookie X valido trovato in x_cookies.json")
         return
 
-    cookies = []
-    with open(cookie_file, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split("\t")
-            if len(parts) < 7:
-                continue
-            domain, flag, path, secure, expires, name, value = parts[:7]
-            cookie = {
-                "name": name,
-                "value": value,
-                "domain": domain,
-                "path": path,
-                "secure": secure.upper() == "TRUE",
-            }
-            try:
-                cookie["expires"] = int(expires)
-            except Exception:
-                pass
-            cookies.append(cookie)
-
-    print(f"[X] caricati {len(cookies)} cookies")
-    x_cookies = [c for c in cookies if "x.com" in c["domain"] or "twitter.com" in c["domain"]]
-    print(f"[X] di cui X/Twitter: {len(x_cookies)}")
-
-    if len(x_cookies) < 3:
-        print("[X] troppi pochi cookies di X")
-        return
+    print(f"[X] caricati {len(x_cookies)} cookies di X/Twitter")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -220,7 +256,6 @@ def spam_x_free(count=2, delay_min=120, delay_max=300):
                     )
                     time.sleep(1.5)
 
-                # bottone giusto su /compose/post = tweetButtonInline
                 btn = page.locator('button[data-testid="tweetButtonInline"]').first
                 if btn.count() == 0:
                     btn = page.locator('button[data-testid="tweetButton"]').first
@@ -271,264 +306,12 @@ def spam_x_free(count=2, delay_min=120, delay_max=300):
     print("[X] finito")
 
 
-def follow_instagram(usernames=None, count=5, delay_min=40, delay_max=90):
-    print("[Instagram Follow] inizio...")
-    from instagrapi import Client
-    from pathlib import Path
-    import random
-    import time
-
-    # stesso SESSIONID di spam_instagram
-    SESSIONID = ""
-
-    pool = usernames or IG_FOLLOW_POOL
-    targets = random.sample(pool, k=min(count, len(pool)))
-
-    cl = Client()
-    try:
-        cl.set_app("448.0.0.0.20")
-    except Exception:
-        pass
-
-    try:
-        if Path("ig_session.json").exists():
-            cl.load_settings("ig_session.json")
-        cl.login_by_sessionid(SESSIONID)
-    except Exception as e:
-        print(f"[Instagram Follow] login fallito: {e}")
-        return
-
-    for user in targets:
-        try:
-            uid = cl.user_id_from_username(user)
-            cl.user_follow(uid)
-            print(f"[Instagram Follow] seguito @{user}")
-        except Exception as e:
-            print(f"[Instagram Follow] errore @{user}: {e}")
-        time.sleep(random.uniform(delay_min, delay_max))
-    print("[Instagram Follow] finito")
-
-
-def follow_tiktok(usernames=None, count=3, delay_min=50, delay_max=100):
-    print("[TikTok Follow] inizio...")
-    from pathlib import Path
-    import random
-    import time
-    from playwright.sync_api import sync_playwright
-
-    pool = usernames or TT_FOLLOW_POOL
-    targets = random.sample(pool, k=min(count, len(pool)))
-
-    cookie_file = Path("tiktok_cookies.txt")
-    if not cookie_file.exists():
-        print("[TikTok Follow] manca tiktok_cookies.txt")
-        return
-
-    cookies = []
-    with open(cookie_file, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split("\t")
-            if len(parts) < 7:
-                continue
-            cookies.append({
-                "name": parts[5],
-                "value": parts[6],
-                "domain": parts[0],
-                "path": parts[2],
-                "secure": parts[3].upper() == "TRUE",
-            })
-    tiktok_cookies = [c for c in cookies if "tiktok.com" in c["domain"]]
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
-        )
-        context = browser.new_context(
-            viewport={"width": 1280, "height": 900},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        )
-        context.add_cookies(tiktok_cookies)
-        page = context.new_page()
-
-        for user in targets:
-            try:
-                page.goto(f"https://www.tiktok.com/@{user}", timeout=45000)
-                time.sleep(5)
-
-                # chiudi popup
-                for _ in range(3):
-                    page.keyboard.press("Escape")
-                    time.sleep(0.4)
-                for label in ["Got it", "Accept", "Allow all", "Rifiuta", "Reject"]:
-                    try:
-                        page.click(f'button:has-text("{label}")', timeout=1500)
-                    except:
-                        pass
-
-                # se già seguito
-                already = page.query_selector(
-                    'button:has-text("Following"), button:has-text("Friends"), '
-                    'button:has-text("Segui già"), button:has-text("Messaggio")'
-                )
-                if already:
-                    print(f"[TikTok Follow] già seguito @{user}")
-                    time.sleep(random.uniform(delay_min, delay_max))
-                    continue
-
-                # prova selettori multipli
-                followed = False
-                selectors = [
-                    'button[data-e2e="follow-button"]',
-                    '[data-e2e="follow-button"]',
-                    'button[data-e2e="browse-follow"]',
-                    'button:has-text("Follow")',
-                    'button:has-text("Segui")',
-                    'button:has-text("Follow back")',
-                    'div[data-e2e="user-page"] button >> text=Follow',
-                    'div[data-e2e="user-page"] button >> text=Segui',
-                ]
-                for sel in selectors:
-                    try:
-                        btn = page.locator(sel).first
-                        if btn.count() == 0:
-                            continue
-                        txt = (btn.inner_text(timeout=2000) or "").strip().lower()
-                        if any(x in txt for x in ["following", "friends", "segui già", "message", "messaggio"]):
-                            print(f"[TikTok Follow] già seguito @{user}")
-                            followed = True
-                            break
-                        btn.click(timeout=4000, force=True)
-                        print(f"[TikTok Follow] seguito @{user} ({txt or sel})")
-                        followed = True
-                        break
-                    except:
-                        continue
-
-                if not followed:
-                    # fallback: primo bottone rosso/rosa nella header profilo
-                    try:
-                        page.locator('button').filter(has_text="Follow").first.click(timeout=3000)
-                        print(f"[TikTok Follow] seguito @{user} (fallback)")
-                        followed = True
-                    except:
-                        pass
-
-                if not followed:
-                    page.screenshot(path=f"tt_follow_fail_{user}.png")
-                    print(f"[TikTok Follow] bottone non trovato @{user} → screenshot tt_follow_fail_{user}.png")
-
-            except Exception as e:
-                print(f"[TikTok Follow] errore @{user}: {e}")
-
-            time.sleep(random.uniform(delay_min, delay_max))
-
-        browser.close()
-    print("[TikTok Follow] finito")
-
-def follow_facebook(usernames=None, count=3, delay_min=60, delay_max=120):
-    """
-    Prova a seguire profili/pagine a caso.
-    Facebook cambia spesso UI → può fallire; delay alti consigliati.
-    """
-    print("[Facebook Follow] inizio...")
-    from pathlib import Path
-    import random
-    import time
-    from playwright.sync_api import sync_playwright
-
-    pool = usernames or FB_FOLLOW_POOL
-    targets = random.sample(pool, k=min(count, len(pool)))
-
-    cookie_file = Path("fb_cookies.txt")
-    if not cookie_file.exists():
-        print("[Facebook Follow] manca fb_cookies.txt")
-        return
-
-    cookies = []
-    with open(cookie_file, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split("\t")
-            if len(parts) < 7:
-                continue
-            cookies.append({
-                "name": parts[5],
-                "value": parts[6],
-                "domain": parts[0],
-                "path": parts[2],
-                "secure": parts[3].upper() == "TRUE",
-            })
-    fb_cookies = [c for c in cookies if "facebook.com" in c["domain"] or "fb.com" in c["domain"]]
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
-        )
-        context = browser.new_context(
-            viewport={"width": 1280, "height": 900},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        )
-        context.add_cookies(fb_cookies)
-        page = context.new_page()
-
-        page.goto("https://www.facebook.com/", timeout=60000)
-        time.sleep(5)
-        if "login" in page.url.lower():
-            print("[Facebook Follow] non loggato")
-            browser.close()
-            return
-
-        for user in targets:
-            try:
-                page.goto(f"https://www.facebook.com/{user}", timeout=45000)
-                time.sleep(4)
-                page.keyboard.press("Escape")
-                time.sleep(1)
-
-                followed = False
-                for sel in [
-                    'div[aria-label="Segui"]',
-                    'div[aria-label="Follow"]',
-                    'div[aria-label="Mi piace"]',
-                    'div[aria-label="Like"]',
-                    'div[role="button"]:has-text("Segui")',
-                    'div[role="button"]:has-text("Follow")',
-                    'div[role="button"]:has-text("Mi piace")',
-                    'div[role="button"]:has-text("Like")',
-                ]:
-                    try:
-                        page.click(sel, timeout=3000)
-                        print(f"[Facebook Follow] ok → {user} ({sel})")
-                        followed = True
-                        break
-                    except:
-                        continue
-
-                if not followed:
-                    page.screenshot(path=f"fb_follow_fail_{user}.png")
-                    print(f"[Facebook Follow] bottone non trovato → {user}")
-
-            except Exception as e:
-                print(f"[Facebook Follow] errore {user}: {e}")
-
-            time.sleep(random.uniform(delay_min, delay_max))
-
-        browser.close()
-    print("[Facebook Follow] finito")
-
 def follow_x_random(count=5, delay_min=40, delay_max=90):
     """Suggested: https://x.com/i/connect_people"""
     print("[X Follow random] inizio...")
-    x_cookies = _load_netscape_cookies("x_cookies.json", ["x.com", "twitter.com"])
+    x_cookies = _load_json_cookies("x_cookies.json", ["x.com", "twitter.com"])
     if not x_cookies:
-        print("[X Follow random] manca x_cookies.json")
+        print("[X Follow random] manca x_cookies.json valido")
         return
 
     with sync_playwright() as p:
@@ -560,13 +343,56 @@ def follow_x_random(count=5, delay_min=40, delay_max=90):
     print(f"[X Follow random] finito ({clicked})")
 
 
+# ============================================================
+# INSTAGRAM (instagrapi - gratis ma rischio ban)
+# ============================================================
+def spam_instagram(count=1, delay=600):
+    print("[Instagram] inizio...")
+    from instagrapi import Client
+    import random
+
+    if not IG_SESSIONID:
+        print("[Instagram] IG_SESSIONID non impostato nelle variabili d'ambiente")
+        return
+
+    cl = Client()
+    try:
+        cl.set_app("448.0.0.0.20")
+    except Exception:
+        pass
+
+    try:
+        cl.login_by_sessionid(IG_SESSIONID)
+        print("[Instagram] login ok (sessionid)")
+        cl.dump_settings("ig_session.json")
+    except Exception as e:
+        print(f"[Instagram] login fallito: {e}")
+        return
+
+    for i in range(count):
+        try:
+            if not Path("promo.jpg").exists():
+                print("[Instagram] manca promo.jpg nella cartella")
+                break
+            media = cl.photo_upload(
+                path="promo.jpg",
+                caption=random.choice(MESSAGES)
+            )
+            print(f"[Instagram] postato → {media.code}")
+        except Exception as e:
+            print(f"[Instagram] errore post: {e}")
+        time.sleep(delay)
+    print("[Instagram] finito")
+
+
 def follow_instagram_random(count=5, delay_min=40, delay_max=90):
     """Autori random da hashtag recenti."""
     print("[IG Follow random] inizio...")
     from instagrapi import Client
 
-    # usa lo stesso SESSIONID di spam_instagram
-    SESSIONID = ""  # oppure incolla la stringa sessionid qui
+    if not IG_SESSIONID:
+        print("[IG Follow random] IG_SESSIONID non impostato")
+        return
 
     hashtags = [
         "crypto", "memecoin", "ai", "solana", "trading",
@@ -580,7 +406,7 @@ def follow_instagram_random(count=5, delay_min=40, delay_max=90):
     try:
         if Path("ig_session.json").exists():
             cl.load_settings("ig_session.json")
-        cl.login_by_sessionid(SESSIONID)
+        cl.login_by_sessionid(IG_SESSIONID)
     except Exception as e:
         print(f"[IG Follow random] login fallito: {e}")
         return
@@ -609,138 +435,25 @@ def follow_instagram_random(count=5, delay_min=40, delay_max=90):
     print(f"[IG Follow random] finito ({done})")
 
 
-def follow_facebook_random(count=3, delay_min=60, delay_max=120):
-    """People you may know / suggestions."""
-    print("[FB Follow random] inizio...")
-    fb_cookies = _load_netscape_cookies("fb_cookies.txt", ["facebook.com", "fb.com"])
-    if not fb_cookies:
-        print("[FB Follow random] manca fb_cookies.txt")
-        return
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
-        context = browser.new_context(
-            viewport={"width": 1280, "height": 900},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        )
-        context.add_cookies(fb_cookies)
-        page = context.new_page()
-        for url in [
-            "https://www.facebook.com/friends/suggestions",
-            "https://www.facebook.com/",
-        ]:
-            page.goto(url, timeout=60000)
-            time.sleep(5)
-            page.keyboard.press("Escape")
-            time.sleep(1)
-
-        clicked = 0
-        selectors = [
-            'div[aria-label="Segui"]',
-            'div[aria-label="Follow"]',
-            'div[aria-label="Aggiungi amico"]',
-            'div[aria-label="Add friend"]',
-            'div[role="button"]:has-text("Segui")',
-            'div[role="button"]:has-text("Follow")',
-            'div[role="button"]:has-text("Aggiungi amico")',
-            'div[role="button"]:has-text("Add friend")',
-        ]
-        for sel in selectors:
-            if clicked >= count:
-                break
-            btns = page.query_selector_all(sel)
-            random.shuffle(btns)
-            for btn in btns:
-                if clicked >= count:
-                    break
-                try:
-                    btn.click(timeout=3000)
-                    clicked += 1
-                    print(f"[FB Follow random] azione #{clicked}")
-                    time.sleep(random.uniform(delay_min, delay_max))
-                except Exception:
-                    pass
-        if clicked == 0:
-            page.screenshot(path="fb_follow_random_fail.png")
-            print("[FB Follow random] nessun bottone → fb_follow_random_fail.png")
-        browser.close()
-    print(f"[FB Follow random] finito ({clicked})")
-
-
-def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
-    """Follow creator dal feed For You."""
-    print("[TT Follow random] inizio...")
-    tiktok_cookies = _load_netscape_cookies("tiktok_cookies.txt", ["tiktok.com"])
-    if not tiktok_cookies:
-        print("[TT Follow random] manca tiktok_cookies.txt")
-        return
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
-        context = browser.new_context(
-            viewport={"width": 1280, "height": 900},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        )
-        context.add_cookies(tiktok_cookies)
-        page = context.new_page()
-        page.goto("https://www.tiktok.com/foryou", timeout=60000)
-        time.sleep(5)
-
-        clicked = 0
-        for _ in range(count * 4):
-            if clicked >= count:
-                break
-            page.keyboard.press("Escape")
-            time.sleep(0.4)
-            for sel in [
-                'button[data-e2e="follow-button"]',
-                '[data-e2e="follow-button"]',
-                'button:has-text("Follow")',
-                'button:has-text("Segui")',
-            ]:
-                try:
-                    loc = page.locator(sel).first
-                    if loc.count() == 0:
-                        continue
-                    txt = (loc.inner_text(timeout=1500) or "").lower()
-                    if any(x in txt for x in ("following", "friends", "segui già")):
-                        break
-                    loc.click(timeout=3000, force=True)
-                    clicked += 1
-                    print(f"[TT Follow random] follow #{clicked}")
-                    time.sleep(random.uniform(delay_min, delay_max))
-                    break
-                except Exception:
-                    continue
-            page.keyboard.press("ArrowDown")
-            time.sleep(2)
-        browser.close()
-    print(f"[TT Follow random] finito ({clicked})")
-
 # ============================================================
-# REDDIT (PRAW - ancora gratis)
+# REDDIT (PRAW - gratis)
 # ============================================================
 import praw
 
-REDDIT_CLIENT_ID = "..."
-REDDIT_CLIENT_SECRET = "..."
-REDDIT_USER_AGENT = "promo_bot/1.0 by u/tuo_username"
-REDDIT_USERNAME = "..."
-REDDIT_PASSWORD = "..."
-
-reddit = praw.Reddit(
-    client_id=REDDIT_CLIENT_ID,
-    client_secret=REDDIT_CLIENT_SECRET,
-    user_agent=REDDIT_USER_AGENT,
-    username=REDDIT_USERNAME,
-    password=REDDIT_PASSWORD
-)
+REDDIT_CLIENT_ID = os.environ.get("REDDIT_CLIENT_ID", "")
+REDDIT_CLIENT_SECRET = os.environ.get("REDDIT_CLIENT_SECRET", "")
+REDDIT_USER_AGENT = os.environ.get("REDDIT_USER_AGENT", "promo_bot/1.0")
+REDDIT_USERNAME = os.environ.get("REDDIT_USERNAME", "")
+REDDIT_PASSWORD = os.environ.get("REDDIT_PASSWORD", "")
 
 def spam_reddit_free(subreddits, title, body, delay=400):
     print("[Reddit Free] inizio...")
-    from pathlib import Path
-
+    
     cookie_file = Path("reddit_cookies.txt")
+    if not cookie_file.exists():
+        print("[Reddit] manca reddit_cookies.txt")
+        return
+
     cookies = []
     with open(cookie_file, "r", encoding="utf-8") as f:
         for line in f:
@@ -775,11 +488,9 @@ def spam_reddit_free(subreddits, title, body, delay=400):
 
         for sub in subreddits:
             try:
-                # vai prima sulla home del sub
                 page.goto(f"https://www.reddit.com/r/{sub}/", timeout=45000)
                 time.sleep(4)
 
-                # clicca sul bottone Create / Create Post
                 create_selectors = [
                     'button:has-text("Create Post")',
                     'a:has-text("Create Post")',
@@ -797,28 +508,22 @@ def spam_reddit_free(subreddits, title, body, delay=400):
                         continue
 
                 if not clicked:
-                    # fallback diretto
                     page.goto(f"https://www.reddit.com/r/{sub}/submit", timeout=30000)
 
                 time.sleep(4)
                 page.keyboard.press("Escape")
                 time.sleep(1)
 
-                # ora prova a scrivere il titolo
                 page.keyboard.type(title, delay=30)
                 time.sleep(1)
-
-                # vai al corpo (Tab)
                 page.keyboard.press("Tab")
                 time.sleep(0.5)
                 page.keyboard.type(body, delay=20)
                 time.sleep(1)
 
-                # Post
-                page.keyboard.press("Control+Enter")  # scorciatoia comune
+                page.keyboard.press("Control+Enter")
                 time.sleep(2)
 
-                # oppure cerca bottone
                 try:
                     page.click('button:has-text("Post")', timeout=3000)
                 except:
@@ -828,7 +533,6 @@ def spam_reddit_free(subreddits, title, body, delay=400):
             except Exception as e:
                 print(f"[Reddit] errore su r/{sub}: {e}")
                 page.screenshot(path=f"reddit_errore_{sub}.png")
-                print("[Reddit] screenshot salvato")
 
             time.sleep(delay)
 
@@ -839,36 +543,12 @@ def spam_reddit_free(subreddits, title, body, delay=400):
 # ============================================================
 # DISCORD (user account / self-bot - gratis)
 # ============================================================
-# Requirements: pip install discord.py-self
-# USER TOKEN (account token, NOT bot token)
-# How to get it (browser):
-# 1. Open Discord in Chrome/Edge
-# 2. F12 → Network tab → filter "api"
-# 3. Send any message or reload
-# 4. Look for request to /api/v9/users/@me or similar
-# 5. Headers → authorization → copy the value
-
-DISCORD_USER_TOKEN = ""
-
-# Target channels (channel IDs as integers)
-# Leave empty list [] to spam every text channel the account can see
-DISCORD_CHANNEL_IDS = [
-     
-    # 987654321098765432,
-]
-
-# Target guilds (server IDs). If empty and CHANNEL_IDS empty → all accessible channels
-DISCORD_GUILD_IDS = [
-    # 111111111111111111,
-]
-
-# Behaviour
-DISCORD_MESSAGES_PER_CHANNEL = 1          # how many messages per channel per cycle
-DISCORD_DELAY_BETWEEN_MESSAGES = (25, 55) # seconds (min, max) between individual messages
-DISCORD_DELAY_BETWEEN_CHANNELS = (40, 90) # seconds between different channels
-DISCORD_MAX_CHANNELS_PER_CYCLE = 15       # safety limit
+DISCORD_MESSAGES_PER_CHANNEL = 1
+DISCORD_DELAY_BETWEEN_MESSAGES = (25, 55)
+DISCORD_DELAY_BETWEEN_CHANNELS = (40, 90)
+DISCORD_MAX_CHANNELS_PER_CYCLE = 15
 DISCORD_ONLY_TEXT_CHANNELS = True
-DISCORD_CHANNEL_NAME_FILTER = []          # e.g. ["general", "chat", "spam"]
+DISCORD_CHANNEL_NAME_FILTER = []
 
 def spam_discord_user():
     """Self-bot: logs in as normal user and spams accessible text channels."""
@@ -879,9 +559,8 @@ def spam_discord_user():
         print("[Discord User] Install first: pip install discord.py-self")
         return
 
-    if DISCORD_USER_TOKEN == "YOUR_USER_TOKEN_HERE" or not DISCORD_USER_TOKEN.strip():
-        print("[Discord User] ERRORE: inserisci il tuo USER TOKEN in DISCORD_USER_TOKEN")
-        print("[Discord User] Non usare un bot token. Serve il token dell'account utente.")
+    if not DISCORD_USER_TOKEN.strip():
+        print("[Discord User] ERRORE: DISCORD_USER_TOKEN non impostato nelle variabili d'ambiente")
         return
 
     intents = discord.Intents.default()
@@ -973,66 +652,11 @@ def spam_discord_user():
 
 
 # ============================================================
-# INSTAGRAM (instagrapi - gratis ma rischio ban)
+# FACEBOOK (cookies + browser - gratis)
 # ============================================================
-def spam_instagram(count=1, delay=600):
-    print("[Instagram] inizio...")
-    from instagrapi import Client
-    from pathlib import Path
-    import random
-    import time
-
-    # Incolla qui il sessionid preso dal browser
-    SESSIONID = ""
-
-    cl = Client()
-    try:
-        cl.set_app("448.0.0.0.20")
-    except Exception:
-        pass
-
-    try:
-        cl.login_by_sessionid(SESSIONID)
-        print("[Instagram] login ok (sessionid)")
-        cl.dump_settings("ig_session.json")
-    except Exception as e:
-        print(f"[Instagram] login fallito: {e}")
-        return
-
-    for i in range(count):
-        try:
-            if not Path("promo.jpg").exists():
-                print("[Instagram] manca promo.jpg nella cartella")
-                break
-            media = cl.photo_upload(
-                path="promo.jpg",
-                caption=random.choice(MESSAGES)
-            )
-            print(f"[Instagram] postato → {media.code}")
-        except Exception as e:
-            print(f"[Instagram] errore post: {e}")
-        time.sleep(delay)
-    print("[Instagram] finito")
-
-# ============================================================
-# FACEBOOK PAGE (Graph API - gratis)
-# ============================================================
-import requests
-
-FB_PAGE_ID = "..."
-FB_PAGE_ACCESS_TOKEN = "..."
-
 def spam_facebook_free(count=1, delay_min=180, delay_max=400):
-    """
-    Posta su Facebook usando cookies esportati.
-    File richiesto: fb_cookies.txt (formato Netscape)
-    """
     print("[Facebook] inizio (cookies)...")
-    from pathlib import Path
-    import random
-    import time
-    from playwright.sync_api import sync_playwright
-
+    
     cookie_file = Path("fb_cookies.txt")
     if not cookie_file.exists():
         print("[Facebook] file fb_cookies.txt non trovato")
@@ -1083,7 +707,6 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
         page.goto("https://www.facebook.com/", timeout=60000)
         time.sleep(6)
 
-        # controllo login
         if "login" in page.url.lower():
             print("[Facebook] non loggato - cookies scaduti o incompleti")
             browser.close()
@@ -1094,14 +717,12 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
         for i in range(count):
             msg = random.choice(MESSAGES)
             try:
-                # chiudi eventuali popup
                 try:
                     page.keyboard.press("Escape")
                     time.sleep(0.8)
                 except:
                     pass
 
-                # apri il composer (più selettori per lingue diverse)
                 opened = False
                 composers = [
                     'div[aria-label*="Crea un post"]',
@@ -1120,18 +741,14 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         continue
 
                 if not opened:
-                    # fallback: vai diretto alla home e prova di nuovo
                     page.goto("https://www.facebook.com/", timeout=30000)
                     time.sleep(3)
                     page.click('div[aria-label*="Crea"], div[aria-label*="Create"]', timeout=5000)
 
                 time.sleep(2)
-
-                # scrivi il messaggio
                 page.keyboard.type(msg, delay=35)
                 time.sleep(1.5)
 
-                # pubblica
                 post_buttons = [
                     'div[aria-label="Pubblica"]',
                     'div[aria-label="Post"]',
@@ -1166,17 +783,70 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
         browser.close()
     print("[Facebook] finito")
 
+
+def follow_facebook_random(count=3, delay_min=60, delay_max=120):
+    print("[FB Follow random] inizio...")
+    fb_cookies = _load_netscape_cookies("fb_cookies.txt", ["facebook.com", "fb.com"])
+    if not fb_cookies:
+        print("[FB Follow random] manca fb_cookies.txt")
+        return
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 900},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        )
+        context.add_cookies(fb_cookies)
+        page = context.new_page()
+        for url in [
+            "https://www.facebook.com/friends/suggestions",
+            "https://www.facebook.com/",
+        ]:
+            page.goto(url, timeout=60000)
+            time.sleep(5)
+            page.keyboard.press("Escape")
+            time.sleep(1)
+
+        clicked = 0
+        selectors = [
+            'div[aria-label="Segui"]',
+            'div[aria-label="Follow"]',
+            'div[aria-label="Aggiungi amico"]',
+            'div[aria-label="Add friend"]',
+            'div[role="button"]:has-text("Segui")',
+            'div[role="button"]:has-text("Follow")',
+            'div[role="button"]:has-text("Aggiungi amico")',
+            'div[role="button"]:has-text("Add friend")',
+        ]
+        for sel in selectors:
+            if clicked >= count:
+                break
+            btns = page.query_selector_all(sel)
+            random.shuffle(btns)
+            for btn in btns:
+                if clicked >= count:
+                    break
+                try:
+                    btn.click(timeout=3000)
+                    clicked += 1
+                    print(f"[FB Follow random] azione #{clicked}")
+                    time.sleep(random.uniform(delay_min, delay_max))
+                except Exception:
+                    pass
+        if clicked == 0:
+            page.screenshot(path="fb_follow_random_fail.png")
+            print("[FB Follow random] nessun bottone → fb_follow_random_fail.png")
+        browser.close()
+    print(f"[FB Follow random] finito ({clicked})")
+
+
 # ============================================================
 # TIKTOK (cookies + browser - gratis)
 # ============================================================
-
 def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
     print("[TikTok] inizio (cookies)...")
-    from pathlib import Path
-    import random
-    import time
-    from playwright.sync_api import sync_playwright
-
+    
     cookie_file = Path("tiktok_cookies.txt")
     if not cookie_file.exists():
         print("[TikTok] manca tiktok_cookies.txt")
@@ -1272,7 +942,6 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                 if file_input is None:
                     page.screenshot(path=f"tiktok_no_input_{i}.png")
                     print("[TikTok] input file non trovato → tiktok_no_input_*.png")
-                    print("[TikTok] URL:", page.url)
                     continue
 
                 file_input.set_input_files(video_path)
@@ -1298,7 +967,6 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                 for label in ["Got it", "Cancel", "Turn on", "Close", "OK", "Not now"]:
                     try:
                         page.click(f'button:has-text("{label}")', timeout=2000)
-                        print(f"[TikTok] chiuso popup: {label}")
                         time.sleep(1)
                     except Exception:
                         pass
@@ -1319,7 +987,6 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                             if text in ("post", "pubblica", "publish") or "post" in text:
                                 el.click(force=True, timeout=5000)
                                 posted = True
-                                print(f"[TikTok] cliccato: {text}")
                                 break
                         if posted:
                             break
@@ -1328,25 +995,13 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
 
                 if not posted:
                     page.mouse.click(1100, 700)
-                    print("[TikTok] tentativo click coordinate")
 
                 time.sleep(2)
                 for label in ["Cancel", "Turn on", "Got it"]:
                     try:
                         page.click(f'button:has-text("{label}")', timeout=2000)
-                        print(f"[TikTok] chiuso dopo Post: {label}")
                     except Exception:
                         pass
-
-                time.sleep(2)
-                try:
-                    page.click(
-                        'button:has-text("Post"), button:has-text("Pubblica")',
-                        timeout=5000,
-                    )
-                    print("[TikTok] Post finale")
-                except Exception:
-                    pass
 
                 time.sleep(12)
                 print("[TikTok] URL finale:", page.url)
@@ -1368,47 +1023,66 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
         browser.close()
     print("[TikTok] finito")
 
+
+def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
+    print("[TT Follow random] inizio...")
+    tiktok_cookies = _load_netscape_cookies("tiktok_cookies.txt", ["tiktok.com"])
+    if not tiktok_cookies:
+        print("[TT Follow random] manca tiktok_cookies.txt")
+        return
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 900},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        )
+        context.add_cookies(tiktok_cookies)
+        page = context.new_page()
+        page.goto("https://www.tiktok.com/foryou", timeout=60000)
+        time.sleep(5)
+
+        clicked = 0
+        for _ in range(count * 4):
+            if clicked >= count:
+                break
+            page.keyboard.press("Escape")
+            time.sleep(0.4)
+            for sel in [
+                'button[data-e2e="follow-button"]',
+                '[data-e2e="follow-button"]',
+                'button:has-text("Follow")',
+                'button:has-text("Segui")',
+            ]:
+                try:
+                    loc = page.locator(sel).first
+                    if loc.count() == 0:
+                        continue
+                    txt = (loc.inner_text(timeout=1500) or "").lower()
+                    if any(x in txt for x in ("following", "friends", "segui già")):
+                        break
+                    loc.click(timeout=3000, force=True)
+                    clicked += 1
+                    print(f"[TT Follow random] follow #{clicked}")
+                    time.sleep(random.uniform(delay_min, delay_max))
+                    break
+                except Exception:
+                    continue
+            page.keyboard.press("ArrowDown")
+            time.sleep(2)
+        browser.close()
+    print(f"[TT Follow random] finito ({clicked})")
+
+
 # ============================================================
 # MAIN - LOOP CONTINUO
 # ============================================================
 def spam_discord():
-    import discord
-    from discord.ext import commands
-    import asyncio
-    import random
+    """Wrapper che chiama la funzione self-bot di Discord."""
+    spam_discord_user()
 
-    TOKEN = ""
-    CHANNEL_IDS = []   # metti qui i tuoi ID canale
-
-    intents = discord.Intents.default()
-    intents.message_content = True
-    intents.guilds = True
-
-    bot = commands.Bot(command_prefix="!", intents=intents)
-
-    @bot.event
-    async def on_ready():
-        print(f"[Discord] loggato come {bot.user}")
-        for ch_id in CHANNEL_IDS:
-            channel = bot.get_channel(int(ch_id))
-            if channel is None:
-                try:
-                    channel = await bot.fetch_channel(int(ch_id))
-                except Exception as e:
-                    print(f"[Discord] canale {ch_id} non trovato: {e}")
-                    continue
-            try:
-                await channel.send(random.choice(MESSAGES))
-                print(f"[Discord] inviato in {ch_id}")
-            except Exception as e:
-                print(f"[Discord] errore invio: {e}")
-            await asyncio.sleep(random.randint(20, 40))
-        await bot.close()
-
-    bot.run(TOKEN)
 
 if __name__ == "__main__":
-    import os
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -1430,8 +1104,6 @@ if __name__ == "__main__":
     threading.Thread(target=_health, daemon=True).start()
     time.sleep(1)
 
-    print("=== BOT MULTI-SOCIAL ATTIVO ===")
-    # ... resto del while True come ora ...
     print("=== BOT MULTI-SOCIAL ATTIVO ===")
     print("Ctrl+C per fermarlo\n")
 
