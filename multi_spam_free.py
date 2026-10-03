@@ -747,21 +747,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[FB Follow] errore critico: {e}")
 
-        # INSTAGRAM (commentato: IP Render bloccato)
-        # try:
-        #     print("\n--- INSTAGRAM ---")
-        #     run_spam_in_thread(spam_instagram, count=1)
-        # except Exception as e:
-        #     print(f"[Instagram] errore critico: {e}")
-
-        # IG FOLLOW RANDOM (commentato)
-        # try:
-        #     print("\n--- IG FOLLOW RANDOM ---")
-        #     run_spam_in_thread(follow_instagram_random, count=5)
-        # except Exception as e:
-        #     print(f"[IG Follow] errore critico: {e}")
-
-        # TIKTOK
+        
         try:
             print("\n--- TIKTOK ---")
             run_spam_in_thread(spam_tiktok_free, video_path="promo.mp4", count=1)
