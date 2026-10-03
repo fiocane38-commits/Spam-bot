@@ -751,6 +751,17 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
         print(f"[TT Follow random] ERRORE: {e}")
         traceback.print_exc()
 
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        print(f"[Health] GET ricevuto")
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def do_HEAD(self):  # Aggiungi questo metodo
+        print(f"[Health] HEAD ricevuto")
+        self.send_response(200)
+        self.end_headers()
 # ============================================================
 # MAIN - LOOP CONTINUO (NON SI FERMA MAI)
 # ============================================================
