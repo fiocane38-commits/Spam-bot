@@ -353,48 +353,43 @@ def spam_discord():
         print("[Discord] DISCORD_USER_TOKEN non impostato. Salto.")
         return
 
-    try:
-        bot = commands.Bot(command_prefix="!", self_bot=True)
-        print("[Discord] Bot creato (senza Intents)")
+    async def _spam():
+        # Crea il client
+        intents = discord.Intents.default()
+        intents.message_content = True
+        intents.guilds = True
+        
+        client = discord.Client(intents=intents, self_bot=True)
 
-        def get_target_channels():
-            channels = []
-            if DISCORD_CHANNEL_IDS:
-                for cid in DISCORD_CHANNEL_IDS:
-                    ch = bot.get_channel(int(cid))
-                    if ch and isinstance(ch, discord.TextChannel):
-                        channels.append(ch)
-                return channels
-            guilds = []
-            if DISCORD_GUILD_IDS:
-                for gid in DISCORD_GUILD_IDS:
-                    g = bot.get_guild(int(gid))
-                    if g:
-                        guilds.append(g)
-            else:
-                guilds = list(bot.guilds)
-            for guild in guilds:
-                for channel in guild.text_channels:
-                    try:
-                        perms = channel.permissions_for(guild.me)
-                        if not perms.send_messages:
-                            continue
-                    except Exception:
-                        continue
-                    channels.append(channel)
-            random.shuffle(channels)
-            return channels[:15]
-
-        @bot.event
+        @client.event
         async def on_ready():
-            print(f"[Discord] loggato come {bot.user}")
+            print(f"[Discord] loggato come {client.user}")
             try:
-                targets = get_target_channels()
-                if not targets:
+                # Raccogli i canali target
+                channels = []
+                if DISCORD_CHANNEL_IDS:
+                    for cid in DISCORD_CHANNEL_IDS:
+                        ch = client.get_channel(int(cid))
+                        if ch and isinstance(ch, discord.TextChannel):
+                            channels.append(ch)
+                else:
+                    for guild in client.guilds:
+                        for channel in guild.text_channels:
+                            try:
+                                perms = channel.permissions_for(guild.me)
+                                if perms.send_messages:
+                                    channels.append(channel)
+                            except Exception:
+                                continue
+                    random.shuffle(channels)
+                    channels = channels[:15]
+
+                if not channels:
                     print("[Discord] nessun canale target")
-                    await bot.close()
+                    await client.close()
                     return
-                for ch in targets:
+
+                for ch in channels:
                     try:
                         await ch.send(PROMO_TEXT.strip() + "\n\n" + PROMO_MEMECOIN.strip())
                         print(f"[Discord] inviato in #{ch.name}")
@@ -404,17 +399,27 @@ def spam_discord():
             except Exception as e:
                 print(f"[Discord] errore ciclo: {e}")
             finally:
-                await bot.close()
+                await client.close()
 
         try:
-            bot.run(DISCORD_USER_TOKEN)
-        except discord.LoginFailure:
-            print("[Discord] Login fallito: token non valido")
+            await client.start(DISCORD_USER_TOKEN)
         except Exception as e:
             print(f"[Discord] Errore avvio: {e}")
+
+    # Esegui in un nuovo event loop
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(_spam())
     except Exception as e:
         print(f"[Discord] ERRORE GENERALE: {e}")
         traceback.print_exc()
+    finally:
+        try:
+            loop.close()
+        except Exception:
+            pass
+
 
 # ============================================================
 # FACEBOOK
