@@ -7,6 +7,10 @@ import random
 import asyncio
 from pathlib import Path
 from playwright.sync_api import sync_playwright
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 
 # ============================================================
 # CONFIG COMUNE
@@ -1492,3 +1496,21 @@ if __name__ == "__main__":
         print("Aspetto 15 minuti...\n")
         ciclo += 1
         time.sleep(900)
+
+def _health():
+    port = int(os.environ.get("PORT", 10000))
+
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, *args):
+            pass
+
+    HTTPServer(("0.0.0.0", port), H).serve_forever()
+
+if __name__ == "__main__":
+    threading.Thread(target=_health, daemon=True).start()
+    # qui il tuo while True del bot...
