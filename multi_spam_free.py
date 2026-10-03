@@ -23,6 +23,7 @@ DISCORD_USER_TOKEN = os.environ.get("DISCORD_USER_TOKEN", "")
 
 IG_SESSIONID = os.environ.get("IG_SESSIONID", "")
 IG_COOKIES_JSON = os.environ.get("IG_COOKIES", "")
+IG_PROXY = os.environ.get("IG_PROXY", "")  # opzionale: http://user:pass@host:port
 
 FB_COOKIES = os.environ.get("FB_COOKIES", "")
 REDDIT_COOKIES = os.environ.get("REDDIT_COOKIES", "")
@@ -104,6 +105,26 @@ REDDIT_SUB_POOL = ["test", "python", "technology", "cryptocurrency", "solana", "
 FB_FOLLOW_POOL = ["zuck", "meta", "instagram", "nasa", "natgeo", "Nike", "adidas", "spacex", "tesla", "Microsoft"]
 
 # ============================================================
+# ARGOMENTI ANTI-RAM PER CHROMIUM
+# ============================================================
+CHROMIUM_ARGS = [
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--single-process",
+    "--no-zygote",
+    "--disable-accelerated-2d-canvas",
+    "--disable-software-rasterizer",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-sync",
+    "--disable-default-apps",
+    "--mute-audio",
+    "--no-first-run",
+    "--disable-blink-features=AutomationControlled",
+]
+
+# ============================================================
 # HELPER COOKIE
 # ============================================================
 def _load_netscape_cookies(path, domain_substr):
@@ -156,7 +177,6 @@ def _load_json_cookies(path, domain_substr):
 # WRAPPER PER THREAD
 # ============================================================
 def run_spam_in_thread(func, *args, **kwargs):
-    """Esegue una funzione di spam in un thread separato con timeout."""
     def target():
         try:
             func(*args, **kwargs)
@@ -166,14 +186,14 @@ def run_spam_in_thread(func, *args, **kwargs):
 
     t = threading.Thread(target=target)
     t.start()
-    t.join(timeout=60)  # Aspetta massimo 60 secondi
+    t.join(timeout=120)
     if t.is_alive():
-        print(f"[Thread] Timeout per {func.__name__} (60s), passo avanti")
+        print(f"[Thread] Timeout per {func.__name__} (120s)")
 
 # ============================================================
-# X (Playwright + cookies)
+# X
 # ============================================================
-def spam_x_free(count=2, delay_min=120, delay_max=300):
+def spam_x_free(count=1, delay_min=90, delay_max=180):
     print("[X] inizio...")
     try:
         x_cookies = _load_json_cookies("x_cookies.json", ["x.com", "twitter.com"])
@@ -183,7 +203,7 @@ def spam_x_free(count=2, delay_min=120, delay_max=300):
         print(f"[X] caricati {len(x_cookies)} cookies")
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"])
+            browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
             context = browser.new_context(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
             context.add_cookies(x_cookies)
             page = context.new_page()
@@ -242,7 +262,7 @@ def spam_x_free(count=2, delay_min=120, delay_max=300):
         print(f"[X] ERRORE GENERALE: {e}")
         traceback.print_exc()
 
-def follow_x_random(count=5, delay_min=40, delay_max=90):
+def follow_x_random(count=3, delay_min=40, delay_max=90):
     print("[X Follow random] inizio...")
     try:
         x_cookies = _load_json_cookies("x_cookies.json", ["x.com", "twitter.com"])
@@ -250,7 +270,7 @@ def follow_x_random(count=5, delay_min=40, delay_max=90):
             print("[X Follow random] manca x_cookies.json valido. Salto.")
             return
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
             context = browser.new_context()
             context.add_cookies(x_cookies)
             page = context.new_page()
@@ -280,16 +300,138 @@ def follow_x_random(count=5, delay_min=40, delay_max=90):
         traceback.print_exc()
 
 # ============================================================
-# INSTAGRAM (commentato: IP Render bloccato)
+# INSTAGRAM (instagrapi)
 # ============================================================
-# def spam_instagram(count=1, delay=600):
-#     ... (codice commentato)
-#
-# def follow_instagram_random(count=5, delay_min=40, delay_max=90):
-#     ... (codice commentato)
+def spam_instagram(count=1, delay=600):
+    print("[Instagram] inizio...")
+    try:
+        from instagrapi import Client
+    except ImportError:
+        print("[Instagram] instagrapi non installato. Salto.")
+        return
+
+    if not IG_SESSIONID:
+        print("[Instagram] IG_SESSIONID non impostato. Salto.")
+        return
+
+    try:
+        cl = Client()
+        try:
+            cl.set_app("448.0.0.0.20")
+        except Exception:
+            pass
+
+        # Proxy residenziale (opzionale)
+        if IG_PROXY:
+            try:
+                cl.set_proxy(IG_PROXY)
+                print(f"[Instagram] Proxy impostato")
+            except Exception as e:
+                print(f"[Instagram] Errore proxy: {e}")
+
+        # Cookie esportati
+        if IG_COOKIES_JSON:
+            try:
+                cookies_list = json.loads(IG_COOKIES_JSON)
+                cookie_dict = {}
+                for c in cookies_list:
+                    if "instagram.com" in c.get("domain", ""):
+                        cookie_dict[c["name"]] = c["value"]
+                if cookie_dict:
+                    cl.set_cookies(cookie_dict)
+                    print("[Instagram] Cookie esportati caricati")
+            except Exception as e:
+                print(f"[Instagram] Errore parsing IG_COOKIES: {e}")
+
+        # Login
+        try:
+            cl.login_by_sessionid(IG_SESSIONID)
+            print("[Instagram] login ok")
+            cl.dump_settings("ig_session.json")
+        except Exception as e:
+            print(f"[Instagram] login fallito: {e}")
+            print("[Instagram] Salto questo ciclo.")
+            return
+
+        # Post
+        for i in range(count):
+            try:
+                if not Path("promo.jpg").exists():
+                    print("[Instagram] manca promo.jpg. Salto post.")
+                    break
+                media = cl.photo_upload(path="promo.jpg", caption=random.choice(MESSAGES))
+                print(f"[Instagram] postato → {media.code}")
+            except Exception as e:
+                print(f"[Instagram] errore post: {e}")
+            time.sleep(delay)
+        print("[Instagram] finito")
+    except Exception as e:
+        print(f"[Instagram] ERRORE GENERALE: {e}")
+        traceback.print_exc()
+
+
+def follow_instagram_random(count=5, delay_min=40, delay_max=90):
+    print("[IG Follow random] inizio...")
+    try:
+        from instagrapi import Client
+    except ImportError:
+        print("[IG Follow random] instagrapi non installato. Salto.")
+        return
+
+    if not IG_SESSIONID:
+        print("[IG Follow random] IG_SESSIONID non impostato. Salto.")
+        return
+
+    try:
+        cl = Client()
+        try:
+            cl.set_app("448.0.0.0.20")
+        except Exception:
+            pass
+
+        if IG_PROXY:
+            try:
+                cl.set_proxy(IG_PROXY)
+            except Exception:
+                pass
+
+        try:
+            if Path("ig_session.json").exists():
+                cl.load_settings("ig_session.json")
+            cl.login_by_sessionid(IG_SESSIONID)
+        except Exception as e:
+            print(f"[IG Follow random] login fallito: {e}")
+            return
+
+        hashtags = ["crypto", "memecoin", "ai", "solana", "trading", "tech", "coding", "nft", "bitcoin", "web3"]
+        tag = random.choice(hashtags)
+        print(f"[IG Follow random] hashtag #{tag}")
+        try:
+            medias = cl.hashtag_medias_recent(tag, amount=40)
+        except Exception as e:
+            print(f"[IG Follow random] errore hashtag: {e}")
+            return
+
+        user_ids = list({m.user.pk for m in medias if getattr(m, "user", None)})
+        random.shuffle(user_ids)
+        done = 0
+        for uid in user_ids:
+            if done >= count:
+                break
+            try:
+                cl.user_follow(uid)
+                done += 1
+                print(f"[IG Follow random] seguito uid={uid} ({done}/{count})")
+            except Exception as e:
+                print(f"[IG Follow random] skip {uid}: {e}")
+            time.sleep(random.uniform(delay_min, delay_max))
+        print(f"[IG Follow random] finito ({done})")
+    except Exception as e:
+        print(f"[IG Follow random] ERRORE GENERALE: {e}")
+        traceback.print_exc()
 
 # ============================================================
-# REDDIT (Playwright + cookies)
+# REDDIT
 # ============================================================
 def spam_reddit_free(subreddits, title, body, delay=400):
     print("[Reddit] inizio...")
@@ -304,7 +446,7 @@ def spam_reddit_free(subreddits, title, body, delay=400):
             return
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
             context = browser.new_context(viewport={"width": 1280, "height": 900})
             context.add_cookies(reddit_cookies)
             page = context.new_page()
@@ -353,7 +495,6 @@ def spam_discord():
         return
 
     async def _spam():
-        # Crea il client SENZA Intents (self-bot)
         try:
             client = discord.Client(self_bot=True)
         except TypeError:
@@ -416,7 +557,6 @@ def spam_discord():
         except Exception:
             pass
 
-
 # ============================================================
 # FACEBOOK
 # ============================================================
@@ -433,7 +573,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
             return
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"])
+            browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
             context = browser.new_context(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
             context.add_cookies(fb_cookies)
             page = context.new_page()
@@ -496,7 +636,7 @@ def follow_facebook_random(count=3, delay_min=60, delay_max=120):
             print("[FB Follow random] manca fb_cookies.txt. Salto.")
             return
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
             context = browser.new_context(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
             context.add_cookies(fb_cookies)
             page = context.new_page()
@@ -545,7 +685,7 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
             return
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
             context = browser.new_context(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
             context.add_cookies(tiktok_cookies)
             page = context.new_page()
@@ -628,7 +768,7 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
             print("[TT Follow random] manca tiktok_cookies.txt. Salto.")
             return
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
             context = browser.new_context(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
             context.add_cookies(tiktok_cookies)
             page = context.new_page()
@@ -664,7 +804,7 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
         traceback.print_exc()
 
 # ============================================================
-# MAIN - LOOP CONTINUO (NON SI FERMA MAI)
+# MAIN - LOOP CONTINUO CON UN SOCIAL PER CICLO
 # ============================================================
 if __name__ == "__main__":
     import threading
@@ -675,13 +815,11 @@ if __name__ == "__main__":
 
         class H(BaseHTTPRequestHandler):
             def do_GET(self):
-                print("[Health] GET ricevuto")
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(b"ok")
 
             def do_HEAD(self):
-                print("[Health] HEAD ricevuto")
                 self.send_response(200)
                 self.end_headers()
 
@@ -697,72 +835,61 @@ if __name__ == "__main__":
     print("=== BOT MULTI-SOCIAL ATTIVO ===")
     print("Ctrl+C per fermarlo\n")
 
+    # Ciclo: un solo social per volta per risparmiare RAM
+    socials = ["x", "reddit", "discord", "facebook", "tiktok", "instagram"]
+    indice = 0
     ciclo = 1
+
     while True:
-        print(f"\n========== CICLO {ciclo} ==========")
+        social = socials[indice]
+        print(f"\n========== CICLO {ciclo} - Social: {social.upper()} ==========")
 
-        # X POST
         try:
-            print("\n--- X POST ---")
-            run_spam_in_thread(spam_x_free, count=1, delay_min=90, delay_max=180)
-        except Exception as e:
-            print(f"[X] errore critico: {e}")
+            if social == "x":
+                print("--- X POST ---")
+                run_spam_in_thread(spam_x_free, count=1, delay_min=90, delay_max=180)
+                print("--- X FOLLOW ---")
+                run_spam_in_thread(follow_x_random, count=3)
 
-        # X FOLLOW RANDOM
-        try:
-            print("\n--- X FOLLOW RANDOM ---")
-            run_spam_in_thread(follow_x_random, count=5)
-        except Exception as e:
-            print(f"[X Follow] errore critico: {e}")
+            elif social == "reddit":
+                print("--- REDDIT ---")
+                run_spam_in_thread(
+                    spam_reddit_free,
+                    subreddits=random.sample(REDDIT_SUB_POOL, k=min(1, len(REDDIT_SUB_POOL))),
+                    title="Nuova community + bot",
+                    body=PROMO_TEXT,
+                )
 
-        # REDDIT
-        try:
-            print("\n--- REDDIT ---")
-            run_spam_in_thread(
-                spam_reddit_free,
-                subreddits=random.sample(REDDIT_SUB_POOL, k=min(2, len(REDDIT_SUB_POOL))),
-                title="Nuova community + bot",
-                body=PROMO_TEXT,
-            )
-        except Exception as e:
-            print(f"[Reddit] errore critico: {e}")
+            elif social == "discord":
+                print("--- DISCORD ---")
+                run_spam_in_thread(spam_discord)
 
-        # DISCORD
-        try:
-            print("\n--- DISCORD ---")
-            run_spam_in_thread(spam_discord)
-        except Exception as e:
-            print(f"[Discord] errore critico: {e}")
+            elif social == "facebook":
+                print("--- FACEBOOK ---")
+                run_spam_in_thread(spam_facebook_free, count=1)
+                print("--- FB FOLLOW ---")
+                run_spam_in_thread(follow_facebook_random, count=2)
 
-        # FACEBOOK
-        try:
-            print("\n--- FACEBOOK ---")
-            run_spam_in_thread(spam_facebook_free, count=1)
-        except Exception as e:
-            print(f"[Facebook] errore critico: {e}")
+            elif social == "tiktok":
+                print("--- TIKTOK ---")
+                run_spam_in_thread(spam_tiktok_free, video_path="promo.mp4", count=1)
+                print("--- TT FOLLOW ---")
+                run_spam_in_thread(follow_tiktok_random, count=2)
 
-        # FB FOLLOW RANDOM
-        try:
-            print("\n--- FB FOLLOW RANDOM ---")
-            run_spam_in_thread(follow_facebook_random, count=3)
-        except Exception as e:
-            print(f"[FB Follow] errore critico: {e}")
+            elif social == "instagram":
+                print("--- INSTAGRAM ---")
+                run_spam_in_thread(spam_instagram, count=1)
+                print("--- IG FOLLOW ---")
+                run_spam_in_thread(follow_instagram_random, count=3)
 
-        
-        try:
-            print("\n--- TIKTOK ---")
-            run_spam_in_thread(spam_tiktok_free, video_path="promo.mp4", count=1)
         except Exception as e:
-            print(f"[TikTok] errore critico: {e}")
+            print(f"[{social}] errore critico: {e}")
+            traceback.print_exc()
 
-        # TT FOLLOW RANDOM
-        try:
-            print("\n--- TT FOLLOW RANDOM ---")
-            run_spam_in_thread(follow_tiktok_random, count=3)
-        except Exception as e:
-            print(f"[TT Follow] errore critico: {e}")
-
-        print(f"\n=== Fine ciclo {ciclo} ===")
-        print("Aspetto 15 minuti...\n")
+        # Passa al social successivo
+        indice = (indice + 1) % len(socials)
         ciclo += 1
-        time.sleep(900)
+
+        print(f"\n=== Fine ciclo {ciclo-1} ===")
+        print("Aspetto 5 minuti...\n")
+        time.sleep(300)
