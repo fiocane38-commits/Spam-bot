@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+x_cookies.json
+fb_cookies.txt
+tiktok_cookies.txt
+reddit_cookies.txt
+ig_session.json
+promo.jpg
+promo.mp4
+*.png
+.env
