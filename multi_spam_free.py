@@ -23,7 +23,7 @@ DISCORD_USER_TOKEN = os.environ.get("DISCORD_USER_TOKEN", "")
 
 IG_SESSIONID = os.environ.get("IG_SESSIONID", "")
 IG_COOKIES_JSON = os.environ.get("IG_COOKIES", "")
-IG_PROXY = os.environ.get("IG_PROXY", "")  # opzionale: http://user:pass@host:port
+IG_PROXY = os.environ.get("IG_PROXY", "")
 
 FB_COOKIES = os.environ.get("FB_COOKIES", "")
 REDDIT_COOKIES = os.environ.get("REDDIT_COOKIES", "")
@@ -51,7 +51,9 @@ def create_cookie_files():
         else:
             print(f"[Setup] ATTENZIONE: {filename} è vuoto o mancante.")
 
+print("=== AVVIO SCRIPT ===")
 create_cookie_files()
+print("=== SETUP COMPLETATO ===")
 
 # Configurazione Discord
 DISCORD_CHANNEL_IDS = []
@@ -300,7 +302,7 @@ def follow_x_random(count=3, delay_min=40, delay_max=90):
         traceback.print_exc()
 
 # ============================================================
-# INSTAGRAM (instagrapi)
+# INSTAGRAM
 # ============================================================
 def spam_instagram(count=1, delay=600):
     print("[Instagram] inizio...")
@@ -321,7 +323,6 @@ def spam_instagram(count=1, delay=600):
         except Exception:
             pass
 
-        # Proxy residenziale (opzionale)
         if IG_PROXY:
             try:
                 cl.set_proxy(IG_PROXY)
@@ -329,7 +330,6 @@ def spam_instagram(count=1, delay=600):
             except Exception as e:
                 print(f"[Instagram] Errore proxy: {e}")
 
-        # Cookie esportati
         if IG_COOKIES_JSON:
             try:
                 cookies_list = json.loads(IG_COOKIES_JSON)
@@ -343,7 +343,6 @@ def spam_instagram(count=1, delay=600):
             except Exception as e:
                 print(f"[Instagram] Errore parsing IG_COOKIES: {e}")
 
-        # Login
         try:
             cl.login_by_sessionid(IG_SESSIONID)
             print("[Instagram] login ok")
@@ -353,7 +352,6 @@ def spam_instagram(count=1, delay=600):
             print("[Instagram] Salto questo ciclo.")
             return
 
-        # Post
         for i in range(count):
             try:
                 if not Path("promo.jpg").exists():
@@ -807,30 +805,38 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
 # MAIN - LOOP CONTINUO CON UN SOCIAL PER CICLO
 # ============================================================
 if __name__ == "__main__":
+    print("=== MAIN INIZIATO ===")
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
+    print("=== IMPORT COMPLETATI ===")
+
     def _health():
         port = int(os.environ.get("PORT", 10000))
+        print(f"[Health] Tentativo di avvio su 0.0.0.0:{port}")
 
         class H(BaseHTTPRequestHandler):
             def do_GET(self):
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(b"ok")
-
             def do_HEAD(self):
                 self.send_response(200)
                 self.end_headers()
-
             def log_message(self, *args):
                 pass
 
-        print(f"[Health] in ascolto su 0.0.0.0:{port}")
-        HTTPServer(("0.0.0.0", port), H).serve_forever()
+        try:
+            server = HTTPServer(("0.0.0.0", port), H)
+            print(f"[Health] in ascolto su 0.0.0.0:{port}")
+            server.serve_forever()
+        except Exception as e:
+            print(f"[Health] ERRORE: {e}")
+            traceback.print_exc()
 
+    print("=== AVVIO THREAD HEALTH ===")
     threading.Thread(target=_health, daemon=True).start()
-    time.sleep(1)
+    time.sleep(2)
 
     print("=== BOT MULTI-SOCIAL ATTIVO ===")
     print("Ctrl+C per fermarlo\n")
