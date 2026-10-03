@@ -1,7 +1,7 @@
 playwright>=1.40.0
 instagrapi>=2.0.0
 discord.py>=2.3.0
-discord.py-self=2.1.0
+discord.py-self>=2.1.0
 requests>=2.31.0
 Pillow>=10.0.0
 pycryptodomex>=3.19.0
