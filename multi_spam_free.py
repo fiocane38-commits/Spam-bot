@@ -813,31 +813,27 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         'div[aria-label="Pubblica"]',
                         'div[aria-label="Pubblica post"]',
                         'div[aria-label="Pubblica adesso"]',
-                        # Italiano - role button con testo
+                        # Italiano - role button
                         'div[role="button"]:has-text("Pubblica")',
                         'div[role="button"]:has-text("Pubblica post")',
                         'div[role="button"]:has-text("Pubblica adesso")',
-                        # Inglese - aria-label
+                        # Inglese
                         'div[aria-label="Post"]',
                         'div[aria-label="Publish"]',
                         'div[aria-label="Post now"]',
-                        # Inglese - role button con testo
                         'div[role="button"]:has-text("Post")',
                         'div[role="button"]:has-text("Publish")',
                         'div[role="button"]:has-text("Post now")',
-                        # Generico - qualsiasi bottone con testo
+                        # Generico
                         'div[role="button"][aria-label*="Pubblica"]',
                         'div[role="button"][aria-label*="Post"]',
                         'div[role="button"][aria-label*="Publish"]',
-                        # Fallback: ultimo bottone del dialog
+                        # Fallback: dialog
                         'div[role="dialog"] div[role="button"]:last-child',
                         'div[role="dialog"] div[aria-label="Pubblica"]',
                         'div[role="dialog"] div[aria-label="Post"]',
                         'div[role="dialog"] div[aria-label="Publish"]',
-                        # Fallback: qualsiasi span con testo Pubblica
-                        'span:has-text("Pubblica")',
-                        'span:has-text("Post")',
-                        # Fallback: cerca il bottone con sfondo blu
+                        # Fallback: bottone blu di Facebook
                         'div[role="dialog"] div[style*="background-color: rgb(24, 119, 242)"]',
                         'div[role="dialog"] div[style*="background-color: #1877F2"]',
                     ]
@@ -853,8 +849,34 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         except Exception:
                             continue
 
-                    if posted:
-                        print(f"[Facebook] {i+1}/{count} postato")
+                    # Attesa per far processare il click
+                    time.sleep(5)
+
+                    # Screenshot DOPO il click
+                    try:
+                        page.screenshot(path=f"fb_after_publish_{i}.png")
+                        print(f"[Facebook] Screenshot dopo Pubblica: fb_after_publish_{i}.png")
+                    except Exception:
+                        pass
+
+                    # Verifica se il dialog è ancora aperto
+                    dialog_still_open = False
+                    try:
+                        dialog = page.locator('div[role="dialog"]').first
+                        if dialog.count() > 0 and dialog.is_visible():
+                            dialog_still_open = True
+                    except Exception:
+                        pass
+
+                    if posted and not dialog_still_open:
+                        print(f"[Facebook] {i+1}/{count} POSTATO (dialog chiuso)")
+                    elif posted and dialog_still_open:
+                        print(f"[Facebook] {i+1}/{count} CLICK FATTO ma il dialog è ANCORA APERTO (post bloccato da Facebook?)")
+                        try:
+                            page.screenshot(path=f"fb_dialog_open_{i}.png")
+                            print(f"[Facebook] Screenshot dialog aperto: fb_dialog_open_{i}.png")
+                        except Exception:
+                            pass
                     else:
                         print(f"[Facebook] {i+1}/{count} bottone Pubblica non trovato")
                         try:
@@ -876,6 +898,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
     except Exception as e:
         print(f"[Facebook] ERRORE GENERALE: {e}")
         traceback.print_exc()
+                        
 
 
 def follow_facebook_random(count=3, delay_min=60, delay_max=120):
