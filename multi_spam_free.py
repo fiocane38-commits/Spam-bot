@@ -689,15 +689,13 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                     except Exception:
                         pass
 
-                    # Prova più selettori per il composer, con timeout più lunghi
+                    # Apri composer con selettori specifici
                     opened = False
                     composers = [
-                        'div[role="button"]:has-text("Crea un post")',
-                        'div[role="button"]:has-text("Create a post")',
                         'div[role="button"]:has-text("A cosa stai pensando")',
                         'div[role="button"]:has-text("What\'s on your mind")',
-                        'div[aria-label="Crea un post"]',
-                        'div[aria-label="Create a post"]',
+                        'div[role="button"]:has-text("Crea un post")',
+                        'div[role="button"]:has-text("Create a post")',
                         'span:has-text("A cosa stai pensando")',
                         'span:has-text("What\'s on your mind")',
                     ]
@@ -720,7 +718,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
                     time.sleep(3)
 
-                    # Scrivi il messaggio nella casella di testo
+                    # Trova la textbox (con più selettori e force=True)
                     text_box = None
                     for sel in [
                         'div[role="textbox"]',
@@ -743,9 +741,51 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         page.screenshot(path=f"fb_no_textbox_{i}.png")
                         continue
 
-                    text_box.click(timeout=8000)
+                    # Click con fallback: normale → force=True → JS
+                    clicked = False
+                    try:
+                        text_box.click(timeout=5000)
+                        print("[Facebook] Click normale sulla textbox")
+                        clicked = True
+                    except Exception as e:
+                        print(f"[Facebook] Click normale fallito: {e}")
+                        try:
+                            text_box.click(force=True, timeout=5000)
+                            print("[Facebook] Click force=True sulla textbox")
+                            clicked = True
+                        except Exception as e2:
+                            print(f"[Facebook] Click force=True fallito: {e2}")
+                            try:
+                                text_box.evaluate("el => el.click()")
+                                text_box.evaluate("el => el.focus()")
+                                print("[Facebook] Click + focus via JS")
+                                clicked = True
+                            except Exception as e3:
+                                print(f"[Facebook] Click JS fallito: {e3}")
+
+                    if not clicked:
+                        print("[Facebook] Impossibile cliccare sulla textbox. Salto post.")
+                        page.screenshot(path=f"fb_click_fail_{i}.png")
+                        continue
+
                     time.sleep(1)
-                    page.keyboard.type(msg, delay=35)
+
+                    # Scrivi il messaggio
+                    try:
+                        page.keyboard.type(msg, delay=35)
+                        print(f"[Facebook] Testo digitato ({len(msg)} char)")
+                    except Exception as e:
+                        print(f"[Facebook] Errore digitazione: {e}")
+                        # Fallback: usa JS per impostare il testo
+                        try:
+                            text_box.evaluate(
+                                "(el, text) => { el.focus(); el.innerText = text; el.dispatchEvent(new Event('input', {bubbles: true})); }",
+                                msg
+                            )
+                            print("[Facebook] Testo impostato via JS")
+                        except Exception as e2:
+                            print(f"[Facebook] Errore JS: {e2}")
+
                     time.sleep(2)
 
                     # Cerca il bottone Pubblica
@@ -788,6 +828,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
     except Exception as e:
         print(f"[Facebook] ERRORE GENERALE: {e}")
         traceback.print_exc()
+
 
 def follow_facebook_random(count=3, delay_min=60, delay_max=120):
     print("[FB Follow random] inizio...")
