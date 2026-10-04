@@ -257,19 +257,9 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                         page.goto("https://x.com/compose/post", timeout=60000, wait_until="domcontentloaded")
                     except Exception as e:
                         print(f"[X] Timeout su /compose/post: {e}")
-                        try:
-                            page.screenshot(path=f"x_timeout_{i}.png")
-                        except Exception:
-                            pass
                         continue
 
                     time.sleep(6)
-
-                    try:
-                        page.screenshot(path=f"x_compose_{i}.png")
-                        print(f"[X] Screenshot: x_compose_{i}.png")
-                    except Exception:
-                        pass
 
                     for _ in range(3):
                         try:
@@ -296,10 +286,6 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
 
                     if box is None:
                         print("[X] Nessun selettore trovato. Salto post.")
-                        try:
-                            page.screenshot(path=f"x_no_box_{i}.png")
-                        except Exception:
-                            pass
                         continue
 
                     box.click(timeout=8000)
@@ -348,10 +334,6 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                     print(f"[X] {i+1}/{count} ok")
                 except Exception as e:
                     print(f"[X] errore post: {e}")
-                    try:
-                        page.screenshot(path=f"x_errore_{i}.png")
-                    except Exception:
-                        pass
                 time.sleep(random.uniform(delay_min, delay_max))
             print("[X] Chiudo browser...")
             try:
@@ -687,7 +669,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
             context.add_cookies(fb_cookies)
             page = context.new_page()
             page.goto("https://www.facebook.com/", timeout=60000, wait_until="domcontentloaded")
-            time.sleep(8)
+            time.sleep(10)
 
             if "login" in page.url.lower():
                 print("[Facebook] non loggato. Salto.")
@@ -746,7 +728,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         print("[Facebook] Composer non trovato. Salto post.")
                         continue
 
-                    time.sleep(3)
+                    time.sleep(5)
 
                     text_box = None
                     for sel in [
@@ -758,7 +740,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         try:
                             loc = page.locator(sel).first
                             if loc.count() > 0:
-                                loc.wait_for(state="visible", timeout=5000)
+                                loc.wait_for(state="visible", timeout=8000)
                                 text_box = loc
                                 print(f"[Facebook] Textbox trovata: {sel}")
                                 break
@@ -767,6 +749,10 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
                     if text_box is None:
                         print("[Facebook] Textbox non trovata. Salto post.")
+                        try:
+                            page.screenshot(path=f"fb_no_textbox_{i}.png")
+                        except Exception:
+                            pass
                         continue
 
                     try:
@@ -828,10 +814,6 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
                 except Exception as e:
                     print(f"[Facebook] errore post: {e}")
-                    try:
-                        page.screenshot(path=f"fb_errore_{i}.png")
-                    except Exception:
-                        pass
                 time.sleep(random.uniform(delay_min, delay_max))
             print("[Facebook] Chiudo browser...")
             try:
@@ -940,10 +922,6 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                             continue
                     if file_input is None:
                         print("[TikTok] input file non trovato. Salto.")
-                        try:
-                            page.screenshot(path=f"tiktok_no_input_{i}.png")
-                        except Exception:
-                            pass
                         continue
                     file_input.set_input_files(video_path)
                     print("[TikTok] video caricato, attendo...")
@@ -982,16 +960,8 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                         print(f"[TikTok] {i+1}/{count} postato")
                     else:
                         print(f"[TikTok] {i+1}/{count} bottone Post non trovato")
-                        try:
-                            page.screenshot(path=f"tiktok_no_post_{i}.png")
-                        except Exception:
-                            pass
                 except Exception as e:
                     print(f"[TikTok] errore post: {e}")
-                    try:
-                        page.screenshot(path=f"tiktok_errore_{i}.png")
-                    except Exception:
-                        pass
                 time.sleep(delay)
             print("[TikTok] Chiudo browser...")
             try:
@@ -1065,6 +1035,9 @@ if __name__ == "__main__":
 
     PORT = int(os.environ.get("PORT", 10000))
 
+    class ReusableTCPServer(socketserver.TCPServer):
+        allow_reuse_address = True
+
     class HealthHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
@@ -1081,7 +1054,7 @@ if __name__ == "__main__":
 
     def start_health_server():
         try:
-            with socketserver.TCPServer(("0.0.0.0", PORT), HealthHandler) as httpd:
+            with ReusableTCPServer(("0.0.0.0", PORT), HealthHandler) as httpd:
                 print(f"[Health] Server in ascolto su porta {PORT}")
                 httpd.serve_forever()
         except Exception as e:
