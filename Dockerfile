@@ -9,5 +9,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY . .
 
 ENV TZ=Europe/Rome
+ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "multi_spam_free.py"]
+CMD ["python", "-u", "multi_spam_free.py"]
