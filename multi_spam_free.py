@@ -694,11 +694,16 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                     # Apri composer
                     opened = False
                     composers = [
-                        'div[role="button"]:has-text("A cosa stai pensando")',
-                        'div[role="button"]:has-text("What\'s on your mind")',
-                        'div[role="button"]:has-text("Crea un post")',
-                        'div[role="button"]:has-text("Create a post")',
-                    ]
+    'div[role="button"]:has-text("A cosa stai pensando")',
+    'div[role="button"]:has-text("What\'s on your mind")',
+    'div[role="button"]:has-text("Crea un post")',
+    'div[role="button"]:has-text("Create a post")',
+    'span:has-text("A cosa stai pensando")',
+    'span:has-text("What\'s on your mind")',
+    'div[aria-label*="Crea un post"]',
+    'div[aria-label*="Create a post"]',
+    'div[data-pagelet="FeedUnit"] div[role="button"]',  # <-- generico
+]
                     for sel in composers:
                         try:
                             loc = page.locator(sel).first
