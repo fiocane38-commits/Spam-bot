@@ -121,14 +121,12 @@ REDDIT_SUB_POOL = ["test", "python", "technology", "cryptocurrency", "solana", "
 FB_FOLLOW_POOL = ["zuck", "meta", "instagram", "nasa", "natgeo", "Nike", "adidas", "spacex", "tesla", "Microsoft"]
 
 # ============================================================
-# ARGOMENTI ANTI-RAM PER CHROMIUM
+# ARGOMENTI CHROMIUM (stabilità)
 # ============================================================
 CHROMIUM_ARGS = [
     "--no-sandbox",
     "--disable-dev-shm-usage",
     "--disable-gpu",
-    "--single-process",
-    "--no-zygote",
     "--disable-accelerated-2d-canvas",
     "--disable-software-rasterizer",
     "--disable-extensions",
@@ -646,7 +644,7 @@ def spam_discord():
             pass
 
 # ============================================================
-# FACEBOOK
+# FACEBOOK (senza blacklist - gira normalmente come gli altri)
 # ============================================================
 def spam_facebook_free(count=1, delay_min=180, delay_max=400):
     print("[Facebook] inizio...")
@@ -850,7 +848,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                             continue
 
                     # Attesa per far processare il click
-                    time.sleep(5)
+                    time.sleep(10)
 
                     # Screenshot DOPO il click
                     try:
@@ -898,7 +896,6 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
     except Exception as e:
         print(f"[Facebook] ERRORE GENERALE: {e}")
         traceback.print_exc()
-                        
 
 
 def follow_facebook_random(count=3, delay_min=60, delay_max=120):
@@ -1099,7 +1096,7 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
         traceback.print_exc()
 
 # ============================================================
-# MAIN - LOOP CONTINUO CON UN SOCIAL PER CICLO
+# MAIN - LOOP CON 1 POST OGNI 4 ORE PER SOCIAL
 # ============================================================
 if __name__ == "__main__":
     print("=== 15. MAIN INIZIATO ===")
@@ -1142,7 +1139,8 @@ if __name__ == "__main__":
     print(f"=== PORT={PORT} - Il server HTTP è in un thread separato ===")
     print("Ctrl+C per fermarlo\n")
 
-    socials = ["facebook", "tiktok", "instagram", "reddit", "discord", "x"]
+    # Ordine ottimizzato: prima Discord (API, affidabile), Facebook per ultimo
+    socials = ["discord", "reddit", "x", "instagram", "tiktok", "facebook"]
     indice = 0
     ciclo = 1
 
@@ -1154,8 +1152,6 @@ if __name__ == "__main__":
             if social == "x":
                 print("--- X POST ---")
                 run_spam_in_thread(spam_x_free, count=1, delay_min=30, delay_max=60)
-                print("--- X FOLLOW ---")
-                run_spam_in_thread(follow_x_random, count=3, delay_min=15, delay_max=30)
 
             elif social == "reddit":
                 print("--- REDDIT ---")
@@ -1174,20 +1170,14 @@ if __name__ == "__main__":
             elif social == "facebook":
                 print("--- FACEBOOK ---")
                 run_spam_in_thread(spam_facebook_free, count=1, delay_min=60, delay_max=120)
-                print("--- FB FOLLOW ---")
-                run_spam_in_thread(follow_facebook_random, count=2, delay_min=30, delay_max=60)
 
             elif social == "tiktok":
                 print("--- TIKTOK ---")
                 run_spam_in_thread(spam_tiktok_free, video_path="promo.mp4", count=1, delay=120)
-                print("--- TT FOLLOW ---")
-                run_spam_in_thread(follow_tiktok_random, count=2, delay_min=30, delay_max=60)
 
             elif social == "instagram":
                 print("--- INSTAGRAM ---")
                 run_spam_in_thread(spam_instagram, count=1, delay=120)
-                print("--- IG FOLLOW ---")
-                run_spam_in_thread(follow_instagram_random, count=3, delay_min=20, delay_max=40)
 
         except Exception as e:
             print(f"[{social}] errore critico: {e}")
@@ -1197,5 +1187,5 @@ if __name__ == "__main__":
         ciclo += 1
 
         print(f"\n=== Fine ciclo {ciclo-1} ===")
-        print("Aspetto 30 secondi...\n")
-        time.sleep(30)
+        print("Aspetto 4 ore (1 post al giorno per social)...\n")
+        time.sleep(14400)  # 4 ore = 14400 secondi
