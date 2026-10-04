@@ -232,13 +232,19 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                 page.goto("https://x.com/home", timeout=60000, wait_until="domcontentloaded")
             except Exception as e:
                 print(f"[X] Timeout su /home: {e}")
-                browser.close()
+                try:
+                    browser.close()
+                except Exception:
+                    pass
                 return
             time.sleep(8)
 
             if "login" in page.url.lower() or "i/flow/login" in page.url:
                 print("[X] non loggato - cookies scaduti")
-                browser.close()
+                try:
+                    browser.close()
+                except Exception:
+                    pass
                 return
 
             print("[X] loggato correttamente")
@@ -251,7 +257,10 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                         page.goto("https://x.com/compose/post", timeout=60000, wait_until="domcontentloaded")
                     except Exception as e:
                         print(f"[X] Timeout su /compose/post: {e}")
-                        page.screenshot(path=f"x_timeout_{i}.png")
+                        try:
+                            page.screenshot(path=f"x_timeout_{i}.png")
+                        except Exception:
+                            pass
                         continue
 
                     time.sleep(6)
@@ -287,7 +296,10 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
 
                     if box is None:
                         print("[X] Nessun selettore trovato. Salto post.")
-                        page.screenshot(path=f"x_no_box_{i}.png")
+                        try:
+                            page.screenshot(path=f"x_no_box_{i}.png")
+                        except Exception:
+                            pass
                         continue
 
                     box.click(timeout=8000)
@@ -341,7 +353,12 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                     except Exception:
                         pass
                 time.sleep(random.uniform(delay_min, delay_max))
-            browser.close()
+            print("[X] Chiudo browser...")
+            try:
+                browser.close()
+                print("[X] Browser chiuso")
+            except Exception as e:
+                print(f"[X] Errore chiusura browser: {e}")
         print("[X] finito")
     except Exception as e:
         print(f"[X] ERRORE GENERALE: {e}")
@@ -378,7 +395,11 @@ def follow_x_random(count=3, delay_min=40, delay_max=90):
                     time.sleep(random.uniform(delay_min, delay_max))
                 except Exception:
                     pass
-            browser.close()
+            print("[X Follow random] Chiudo browser...")
+            try:
+                browser.close()
+            except Exception as e:
+                print(f"[X Follow random] Errore chiusura browser: {e}")
         print(f"[X Follow random] finito ({clicked})")
     except Exception as e:
         print(f"[X Follow random] ERRORE: {e}")
@@ -554,7 +575,11 @@ def spam_reddit_free(subreddits, title, body, delay=400):
                 except Exception as e:
                     print(f"[Reddit] errore su r/{sub}: {e}")
                 time.sleep(delay)
-            browser.close()
+            print("[Reddit] Chiudo browser...")
+            try:
+                browser.close()
+            except Exception as e:
+                print(f"[Reddit] Errore chiusura browser: {e}")
         print("[Reddit] finito")
     except Exception as e:
         print(f"[Reddit] ERRORE GENERALE: {e}")
@@ -639,7 +664,7 @@ def spam_discord():
             pass
 
 # ============================================================
-# FACEBOOK (CORRETTO - timeout e selettori)
+# FACEBOOK
 # ============================================================
 def spam_facebook_free(count=1, delay_min=180, delay_max=400):
     print("[Facebook] inizio...")
@@ -666,13 +691,15 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
             if "login" in page.url.lower():
                 print("[Facebook] non loggato. Salto.")
-                browser.close()
+                try:
+                    browser.close()
+                except Exception:
+                    pass
                 return
 
             print("[Facebook] loggato correttamente")
 
             for i in range(count):
-                # Usa messaggio corto per Facebook (evita timeout)
                 fb_msg = random.choice([
                     PROMO_MEMECOIN.strip(),
                     PROMO_MEMECOIN.strip()[:150],
@@ -691,19 +718,18 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                     except Exception:
                         pass
 
-                    # Apri composer
                     opened = False
                     composers = [
-    'div[role="button"]:has-text("A cosa stai pensando")',
-    'div[role="button"]:has-text("What\'s on your mind")',
-    'div[role="button"]:has-text("Crea un post")',
-    'div[role="button"]:has-text("Create a post")',
-    'span:has-text("A cosa stai pensando")',
-    'span:has-text("What\'s on your mind")',
-    'div[aria-label*="Crea un post"]',
-    'div[aria-label*="Create a post"]',
-    'div[data-pagelet="FeedUnit"] div[role="button"]',  # <-- generico
-]
+                        'div[role="button"]:has-text("A cosa stai pensando")',
+                        'div[role="button"]:has-text("What\'s on your mind")',
+                        'div[role="button"]:has-text("Crea un post")',
+                        'div[role="button"]:has-text("Create a post")',
+                        'span:has-text("A cosa stai pensando")',
+                        'span:has-text("What\'s on your mind")',
+                        'div[aria-label*="Crea un post"]',
+                        'div[aria-label*="Create a post"]',
+                        'div[data-pagelet="FeedUnit"] div[role="button"]',
+                    ]
                     for sel in composers:
                         try:
                             loc = page.locator(sel).first
@@ -722,7 +748,6 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
                     time.sleep(3)
 
-                    # Trova textbox
                     text_box = None
                     for sel in [
                         'div[role="textbox"]',
@@ -744,7 +769,6 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         print("[Facebook] Textbox non trovata. Salto post.")
                         continue
 
-                    # Click con fallback
                     try:
                         text_box.click(timeout=5000)
                         print("[Facebook] Click normale sulla textbox")
@@ -762,7 +786,6 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
                     time.sleep(1)
 
-                    # Scrivi con JS (veloce e affidabile)
                     try:
                         text_box.evaluate(
                             "(el, text) => { el.focus(); el.innerText = text; el.dispatchEvent(new Event('input', {bubbles: true})); }",
@@ -779,7 +802,6 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
                     time.sleep(2)
 
-                    # Cerca Pubblica
                     posted = False
                     for sel in [
                         'div[aria-label="Pubblica"]',
@@ -811,11 +833,16 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                     except Exception:
                         pass
                 time.sleep(random.uniform(delay_min, delay_max))
-            browser.close()
+            print("[Facebook] Chiudo browser...")
+            try:
+                browser.close()
+                print("[Facebook] Browser chiuso")
+            except Exception as e:
+                print(f"[Facebook] Errore chiusura browser: {e}")
         print("[Facebook] finito")
     except Exception as e:
         print(f"[Facebook] ERRORE GENERALE: {e}")
-        traceback.print_exc()                                
+        traceback.print_exc()
 
 
 def follow_facebook_random(count=3, delay_min=60, delay_max=120):
@@ -853,7 +880,11 @@ def follow_facebook_random(count=3, delay_min=60, delay_max=120):
                         time.sleep(random.uniform(delay_min, delay_max))
                     except Exception:
                         pass
-            browser.close()
+            print("[FB Follow random] Chiudo browser...")
+            try:
+                browser.close()
+            except Exception as e:
+                print(f"[FB Follow random] Errore chiusura browser: {e}")
         print(f"[FB Follow random] finito ({clicked})")
     except Exception as e:
         print(f"[FB Follow random] ERRORE: {e}")
@@ -909,7 +940,10 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                             continue
                     if file_input is None:
                         print("[TikTok] input file non trovato. Salto.")
-                        page.screenshot(path=f"tiktok_no_input_{i}.png")
+                        try:
+                            page.screenshot(path=f"tiktok_no_input_{i}.png")
+                        except Exception:
+                            pass
                         continue
                     file_input.set_input_files(video_path)
                     print("[TikTok] video caricato, attendo...")
@@ -948,7 +982,10 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                         print(f"[TikTok] {i+1}/{count} postato")
                     else:
                         print(f"[TikTok] {i+1}/{count} bottone Post non trovato")
-                        page.screenshot(path=f"tiktok_no_post_{i}.png")
+                        try:
+                            page.screenshot(path=f"tiktok_no_post_{i}.png")
+                        except Exception:
+                            pass
                 except Exception as e:
                     print(f"[TikTok] errore post: {e}")
                     try:
@@ -956,7 +993,12 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                     except Exception:
                         pass
                 time.sleep(delay)
-            browser.close()
+            print("[TikTok] Chiudo browser...")
+            try:
+                browser.close()
+                print("[TikTok] Browser chiuso")
+            except Exception as e:
+                print(f"[TikTok] Errore chiusura browser: {e}")
         print("[TikTok] finito")
     except Exception as e:
         print(f"[TikTok] ERRORE GENERALE: {e}")
@@ -1002,7 +1044,11 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
                         continue
                 page.keyboard.press("ArrowDown")
                 time.sleep(2)
-            browser.close()
+            print("[TT Follow random] Chiudo browser...")
+            try:
+                browser.close()
+            except Exception as e:
+                print(f"[TT Follow random] Errore chiusura browser: {e}")
         print(f"[TT Follow random] finito ({clicked})")
     except Exception as e:
         print(f"[TT Follow random] ERRORE: {e}")
@@ -1049,7 +1095,6 @@ if __name__ == "__main__":
     print(f"=== PORT={PORT} - Il server HTTP è in un thread separato ===")
     print("Ctrl+C per fermarlo\n")
 
-    # Ciclo: UN SOLO social per ciclo, ruota su tutti
     socials = ["facebook", "tiktok", "instagram", "reddit", "discord", "x"]
     indice = 0
     ciclo = 1
