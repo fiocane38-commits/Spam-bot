@@ -2,16 +2,27 @@
 # pip install playwright praw discord.py-self instagrapi requests
 # playwright install chromium
 
+print("=== 1. INIZIO SCRIPT ===")
+
 import os
+print("=== 2. import os ===")
 import time
+print("=== 3. import time ===")
 import random
+print("=== 4. import random ===")
 import asyncio
+print("=== 5. import asyncio ===")
 import json
+print("=== 6. import json ===")
 import traceback
+print("=== 7. import traceback ===")
 import threading
-import discord
+print("=== 8. import threading ===")
+# import discord  <-- RIMOSSO: lo importiamo solo dentro spam_discord()
 from pathlib import Path
+print("=== 9. import Path ===")
 from playwright.sync_api import sync_playwright
+print("=== 10. import sync_playwright ===")
 
 # ============================================================
 # CONFIGURAZIONE DA VARIABILI D'AMBIENTE (Render)
@@ -29,6 +40,8 @@ FB_COOKIES = os.environ.get("FB_COOKIES", "")
 REDDIT_COOKIES = os.environ.get("REDDIT_COOKIES", "")
 TIKTOK_COOKIES = os.environ.get("TIKTOK_COOKIES", "")
 X_COOKIES = os.environ.get("X_COOKIES", "")
+
+print("=== 11. VARIABILI D'AMBIENTE LETTE ===")
 
 # ============================================================
 # CREAZIONE FILE COOKIE ALL'AVVIO
@@ -51,9 +64,9 @@ def create_cookie_files():
         else:
             print(f"[Setup] ATTENZIONE: {filename} è vuoto o mancante.")
 
-print("=== AVVIO SCRIPT ===")
+print("=== 12. AVVIO create_cookie_files ===")
 create_cookie_files()
-print("=== SETUP COMPLETATO ===")
+print("=== 13. SETUP COMPLETATO ===")
 
 # Configurazione Discord
 DISCORD_CHANNEL_IDS = []
@@ -63,6 +76,8 @@ if DISCORD_CHANNEL_IDS_STR:
 DISCORD_GUILD_IDS = []
 if DISCORD_GUILD_IDS_STR:
     DISCORD_GUILD_IDS = [int(x.strip()) for x in DISCORD_GUILD_IDS_STR.split(",") if x.strip()]
+
+print("=== 14. CONFIGURAZIONE DISCORD COMPLETATA ===")
 
 # ============================================================
 # CONFIG COMUNE
@@ -531,7 +546,7 @@ def spam_discord():
                         print(f"[Discord] inviato in #{ch.name}")
                     except Exception as e:
                         print(f"[Discord] errore in #{ch.name}: {e}")
-                    await asyncio.sleep(random.uniform(25, 55))
+                    await asyncio.sleep(random.uniform(10, 20))
             except Exception as e:
                 print(f"[Discord] errore ciclo: {e}")
             finally:
@@ -805,6 +820,7 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
 # MAIN - LOOP CONTINUO CON UN SOCIAL PER CICLO
 # ============================================================
 if __name__ == "__main__":
+    print("=== 15. MAIN INIZIATO ===")
     import threading
     import http.server
     import socketserver
@@ -824,9 +840,7 @@ if __name__ == "__main__":
             self.end_headers()
 
         def log_message(self, *args):
-            pass
-
-    def start_health_server():
+            pass    def start_health_server():
         try:
             with socketserver.TCPServer(("0.0.0.0", PORT), HealthHandler) as httpd:
                 print(f"[Health] Server in ascolto su porta {PORT}")
@@ -834,12 +848,11 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[Health] ERRORE: {e}")
 
-    # Avvia il server HTTP in un thread daemon
+    print("=== 16. AVVIO THREAD HEALTH ===")
     health_thread = threading.Thread(target=start_health_server, daemon=True)
     health_thread.start()
 
-    # NON aspettare: parti SUBITO con il bot
-    print("=== BOT MULTI-SOCIAL ATTIVO ===")
+    print("=== 17. BOT MULTI-SOCIAL ATTIVO ===")
     print(f"=== PORT={PORT} - Il server HTTP è in un thread separato ===")
     print("Ctrl+C per fermarlo\n")
 
