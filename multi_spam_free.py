@@ -839,10 +839,10 @@ if __name__ == "__main__":
             self.send_response(200)
             self.end_headers()
 
-            def log_message(self, *args):
-        pass
+        def log_message(self, *args):
+            pass
 
-def start_health_server():
+    def start_health_server():
         try:
             with socketserver.TCPServer(("0.0.0.0", PORT), HealthHandler) as httpd:
                 print(f"[Health] Server in ascolto su porta {PORT}")
