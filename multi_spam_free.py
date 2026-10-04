@@ -672,9 +672,12 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
             print("[Facebook] loggato correttamente")
 
             for i in range(count):
-                msg = random.choice(MESSAGES)
+                # Usa messaggio corto per Facebook (evita timeout)
+                fb_msg = random.choice([
+                    PROMO_MEMECOIN.strip(),
+                    PROMO_MEMECOIN.strip()[:150],
+                ])
                 try:
-                    # Chiudi popup
                     for _ in range(3):
                         try:
                             page.keyboard.press("Escape")
@@ -682,22 +685,19 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         except Exception:
                             pass
 
-                    # Screenshot di debug
                     try:
                         page.screenshot(path=f"fb_home_{i}.png")
                         print(f"[Facebook] Screenshot: fb_home_{i}.png")
                     except Exception:
                         pass
 
-                    # Apri composer con selettori specifici
+                    # Apri composer
                     opened = False
                     composers = [
                         'div[role="button"]:has-text("A cosa stai pensando")',
                         'div[role="button"]:has-text("What\'s on your mind")',
                         'div[role="button"]:has-text("Crea un post")',
                         'div[role="button"]:has-text("Create a post")',
-                        'span:has-text("A cosa stai pensando")',
-                        'span:has-text("What\'s on your mind")',
                     ]
                     for sel in composers:
                         try:
@@ -713,12 +713,11 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
                     if not opened:
                         print("[Facebook] Composer non trovato. Salto post.")
-                        page.screenshot(path=f"fb_no_composer_{i}.png")
                         continue
 
                     time.sleep(3)
 
-                    # Trova la textbox (con più selettori e force=True)
+                    # Trova textbox
                     text_box = None
                     for sel in [
                         'div[role="textbox"]',
@@ -738,67 +737,52 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
                     if text_box is None:
                         print("[Facebook] Textbox non trovata. Salto post.")
-                        page.screenshot(path=f"fb_no_textbox_{i}.png")
                         continue
 
-                    # Click con fallback: normale → force=True → JS
-                    clicked = False
+                    # Click con fallback
                     try:
                         text_box.click(timeout=5000)
                         print("[Facebook] Click normale sulla textbox")
-                        clicked = True
-                    except Exception as e:
-                        print(f"[Facebook] Click normale fallito: {e}")
+                    except Exception:
                         try:
                             text_box.click(force=True, timeout=5000)
                             print("[Facebook] Click force=True sulla textbox")
-                            clicked = True
-                        except Exception as e2:
-                            print(f"[Facebook] Click force=True fallito: {e2}")
+                        except Exception:
                             try:
                                 text_box.evaluate("el => el.click()")
                                 text_box.evaluate("el => el.focus()")
                                 print("[Facebook] Click + focus via JS")
-                                clicked = True
                             except Exception as e3:
                                 print(f"[Facebook] Click JS fallito: {e3}")
 
-                    if not clicked:
-                        print("[Facebook] Impossibile cliccare sulla textbox. Salto post.")
-                        page.screenshot(path=f"fb_click_fail_{i}.png")
-                        continue
-
                     time.sleep(1)
 
-                    # Scrivi il messaggio
+                    # Scrivi con JS (veloce e affidabile)
                     try:
-                        page.keyboard.type(msg, delay=35)
-                        print(f"[Facebook] Testo digitato ({len(msg)} char)")
+                        text_box.evaluate(
+                            "(el, text) => { el.focus(); el.innerText = text; el.dispatchEvent(new Event('input', {bubbles: true})); }",
+                            fb_msg
+                        )
+                        print(f"[Facebook] Testo impostato via JS ({len(fb_msg)} char)")
                     except Exception as e:
-                        print(f"[Facebook] Errore digitazione: {e}")
-                        # Fallback: usa JS per impostare il testo
+                        print(f"[Facebook] JS fallito, provo keyboard.type: {e}")
                         try:
-                            text_box.evaluate(
-                                "(el, text) => { el.focus(); el.innerText = text; el.dispatchEvent(new Event('input', {bubbles: true})); }",
-                                msg
-                            )
-                            print("[Facebook] Testo impostato via JS")
+                            page.keyboard.type(fb_msg, delay=15)
+                            print(f"[Facebook] Testo digitato ({len(fb_msg)} char)")
                         except Exception as e2:
-                            print(f"[Facebook] Errore JS: {e2}")
+                            print(f"[Facebook] Errore digitazione: {e2}")
 
                     time.sleep(2)
 
-                    # Cerca il bottone Pubblica
+                    # Cerca Pubblica
                     posted = False
-                    post_buttons = [
+                    for sel in [
                         'div[aria-label="Pubblica"]',
                         'div[aria-label="Post"]',
                         'div[aria-label="Publish"]',
                         'div[role="button"]:has-text("Pubblica")',
                         'div[role="button"]:has-text("Post")',
-                        'div[role="button"]:has-text("Publish")',
-                    ]
-                    for sel in post_buttons:
+                    ]:
                         try:
                             loc = page.locator(sel).first
                             if loc.count() > 0:
@@ -814,7 +798,6 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         print(f"[Facebook] {i+1}/{count} postato")
                     else:
                         print(f"[Facebook] {i+1}/{count} bottone Pubblica non trovato")
-                        page.screenshot(path=f"fb_no_publish_{i}.png")
 
                 except Exception as e:
                     print(f"[Facebook] errore post: {e}")
@@ -827,7 +810,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
         print("[Facebook] finito")
     except Exception as e:
         print(f"[Facebook] ERRORE GENERALE: {e}")
-        traceback.print_exc()
+        traceback.print_exc()                                
 
 
 def follow_facebook_random(count=3, delay_min=60, delay_max=120):
