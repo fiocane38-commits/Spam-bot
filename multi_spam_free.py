@@ -203,9 +203,9 @@ def run_spam_in_thread(func, *args, **kwargs):
 
     t = threading.Thread(target=target)
     t.start()
-    t.join(timeout=120)
+    t.join(timeout=180)  # Aumentato a 180 secondi per dare più tempo
     if t.is_alive():
-        print(f"[Thread] Timeout per {func.__name__} (120s)")
+        print(f"[Thread] Timeout per {func.__name__} (180s)")
 
 # ============================================================
 # X
@@ -238,40 +238,109 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                 msg = random.choice(MESSAGES_X).strip()[:280]
                 try:
                     page.goto("https://x.com/compose/post", timeout=30000)
-                    time.sleep(4)
+                    time.sleep(5)
+
+                    # Screenshot di debug per capire cosa mostra X
+                    try:
+                        page.screenshot(path=f"x_compose_debug_{i}.png")
+                        print(f"[X] Screenshot salvato: x_compose_debug_{i}.png")
+                    except Exception:
+                        pass
+
+                    # Chiudi eventuali popup
                     for _ in range(3):
-                        page.keyboard.press("Escape")
-                        time.sleep(0.3)
-                    box = page.locator('div[data-testid="tweetTextarea_0"]').first
-                    box.click(timeout=10000)
-                    time.sleep(0.5)
-                    page.keyboard.press("Control+A")
-                    page.keyboard.press("Backspace")
-                    time.sleep(0.3)
-                    page.keyboard.type(msg, delay=40)
-                    time.sleep(2)
-                    btn = page.locator('button[data-testid="tweetButtonInline"]').first
-                    if btn.count() == 0:
-                        btn = page.locator('button[data-testid="tweetButton"]').first
-                    enabled = False
-                    for _ in range(10):
                         try:
-                            dis = btn.get_attribute("aria-disabled")
-                            if dis in (None, "false"):
-                                enabled = True
-                                break
+                            page.keyboard.press("Escape")
+                            time.sleep(0.3)
                         except Exception:
                             pass
-                        time.sleep(1)
-                    if enabled and btn.count() > 0:
-                        btn.click(timeout=5000)
-                        print("[X] click Post")
-                    else:
+
+                    # Prova più selettori per la casella di testo
+                    box = None
+                    selettori = [
+                        'div[data-testid="tweetTextarea_0"]',
+                        'div[role="textbox"]',
+                        'div[contenteditable="true"]',
+                        '[data-testid="tweetTextarea_0_label"]',
+                        'div[aria-label*="Post text"]',
+                        'div[aria-label*="Testo del post"]',
+                        'div[aria-label*="Tweet text"]',
+                    ]
+                    for sel in selettori:
+                        try:
+                            loc = page.locator(sel).first
+                            if loc.count() > 0:
+                                loc.wait_for(state="visible", timeout=5000)
+                                box = loc
+                                print(f"[X] Selettore trovato: {sel}")
+                                break
+                        except Exception:
+                            continue
+
+                    if box is None:
+                        print("[X] Nessun selettore trovato. Salto post.")
+                        page.screenshot(path=f"x_no_box_{i}.png")
+                        continue
+
+                    # Click e scrittura del testo
+                    try:
+                        box.click(timeout=5000)
+                    except Exception:
+                        print("[X] Click fallito, provo con force=True")
+                        box.click(force=True, timeout=5000)
+
+                    time.sleep(1)
+                    page.keyboard.press("Control+A")
+                    page.keyboard.press("Backspace")
+                    time.sleep(0.5)
+                    page.keyboard.type(msg, delay=50)
+                    time.sleep(2)
+
+                    # Cerca il bottone Post
+                    btn = None
+                    for sel in [
+                        'button[data-testid="tweetButtonInline"]',
+                        'button[data-testid="tweetButton"]',
+                        'button:has-text("Post")',
+                        'button:has-text("Pubblica")',
+                    ]:
+                        try:
+                            loc = page.locator(sel).first
+                            if loc.count() > 0:
+                                btn = loc
+                                break
+                        except Exception:
+                            continue
+
+                    if btn is None:
+                        print("[X] Bottone Post non trovato, provo Ctrl+Enter")
                         page.keyboard.press("Control+Enter")
+                    else:
+                        enabled = False
+                        for _ in range(10):
+                            try:
+                                dis = btn.get_attribute("aria-disabled")
+                                if dis in (None, "false"):
+                                    enabled = True
+                                    break
+                            except Exception:
+                                pass
+                            time.sleep(1)
+                        if enabled:
+                            btn.click(timeout=5000)
+                            print("[X] click Post")
+                        else:
+                            page.keyboard.press("Control+Enter")
+                            print("[X] fallback Ctrl+Enter")
+
                     time.sleep(5)
                     print(f"[X] {i+1}/{count} ok")
                 except Exception as e:
                     print(f"[X] errore post: {e}")
+                    try:
+                        page.screenshot(path=f"x_errore_{i}.png")
+                    except Exception:
+                        pass
                 time.sleep(random.uniform(delay_min, delay_max))
             browser.close()
         print("[X] finito")
