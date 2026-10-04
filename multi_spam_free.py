@@ -18,7 +18,6 @@ import traceback
 print("=== 7. import traceback ===")
 import threading
 print("=== 8. import threading ===")
-# import discord  <-- RIMOSSO: lo importiamo solo dentro spam_discord()
 from pathlib import Path
 print("=== 9. import Path ===")
 from playwright.sync_api import sync_playwright
@@ -203,7 +202,7 @@ def run_spam_in_thread(func, *args, **kwargs):
 
     t = threading.Thread(target=target)
     t.start()
-    t.join(timeout=180)  # Aumentato a 180 secondi per dare più tempo
+    t.join(timeout=180)
     if t.is_alive():
         print(f"[Thread] Timeout per {func.__name__} (180s)")
 
@@ -228,7 +227,6 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
             context.add_cookies(x_cookies)
             page = context.new_page()
 
-            # Naviga alla home con wait_until più permissivo
             print("[X] Navigazione a x.com/home...")
             try:
                 page.goto("https://x.com/home", timeout=60000, wait_until="domcontentloaded")
@@ -236,7 +234,7 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                 print(f"[X] Timeout su /home: {e}")
                 browser.close()
                 return
-            time.sleep(8)  # Aumentato da 5 a 8 secondi
+            time.sleep(8)
 
             if "login" in page.url.lower() or "i/flow/login" in page.url:
                 print("[X] non loggato - cookies scaduti")
@@ -256,16 +254,14 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                         page.screenshot(path=f"x_timeout_{i}.png")
                         continue
 
-                    time.sleep(6)  # Aspetta che la pagina sia pronta
+                    time.sleep(6)
 
-                    # Screenshot di debug
                     try:
                         page.screenshot(path=f"x_compose_{i}.png")
                         print(f"[X] Screenshot: x_compose_{i}.png")
                     except Exception:
                         pass
 
-                    # Chiudi popup
                     for _ in range(3):
                         try:
                             page.keyboard.press("Escape")
@@ -273,7 +269,6 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                         except Exception:
                             pass
 
-                    # Prova più selettori
                     box = None
                     for sel in [
                         'div[data-testid="tweetTextarea_0"]',
@@ -295,7 +290,6 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                         page.screenshot(path=f"x_no_box_{i}.png")
                         continue
 
-                    # Click e scrittura
                     box.click(timeout=8000)
                     time.sleep(1)
                     page.keyboard.press("Control+A")
@@ -304,7 +298,6 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                     page.keyboard.type(msg, delay=50)
                     time.sleep(2)
 
-                    # Cerca il bottone Post
                     btn = None
                     for sel in [
                         'button[data-testid="tweetButtonInline"]',
@@ -353,7 +346,7 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
     except Exception as e:
         print(f"[X] ERRORE GENERALE: {e}")
         traceback.print_exc()
-        
+
 def follow_x_random(count=3, delay_min=40, delay_max=90):
     print("[X Follow random] inizio...")
     try:
@@ -646,7 +639,7 @@ def spam_discord():
             pass
 
 # ============================================================
-# FACEBOOK
+# FACEBOOK (CORRETTO - timeout e selettori)
 # ============================================================
 def spam_facebook_free(count=1, delay_min=180, delay_max=400):
     print("[Facebook] inizio...")
@@ -662,11 +655,14 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
-            context = browser.new_context(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            context = browser.new_context(
+                viewport={"width": 1280, "height": 900},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            )
             context.add_cookies(fb_cookies)
             page = context.new_page()
-            page.goto("https://www.facebook.com/", timeout=60000)
-            time.sleep(6)
+            page.goto("https://www.facebook.com/", timeout=60000, wait_until="domcontentloaded")
+            time.sleep(8)
 
             if "login" in page.url.lower():
                 print("[Facebook] non loggato. Salto.")
@@ -678,37 +674,114 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
             for i in range(count):
                 msg = random.choice(MESSAGES)
                 try:
-                    page.keyboard.press("Escape")
-                    time.sleep(0.8)
+                    # Chiudi popup
+                    for _ in range(3):
+                        try:
+                            page.keyboard.press("Escape")
+                            time.sleep(0.5)
+                        except Exception:
+                            pass
+
+                    # Screenshot di debug
+                    try:
+                        page.screenshot(path=f"fb_home_{i}.png")
+                        print(f"[Facebook] Screenshot: fb_home_{i}.png")
+                    except Exception:
+                        pass
+
+                    # Prova più selettori per il composer, con timeout più lunghi
                     opened = False
-                    for sel in ['div[aria-label*="Crea un post"]', 'div[aria-label*="Create a post"]', 'div[aria-label*="What\'s on your mind"]', 'span:has-text("A cosa stai pensando")', 'span:has-text("What\'s on your mind")']:
+                    composers = [
+                        'div[role="button"]:has-text("Crea un post")',
+                        'div[role="button"]:has-text("Create a post")',
+                        'div[role="button"]:has-text("A cosa stai pensando")',
+                        'div[role="button"]:has-text("What\'s on your mind")',
+                        'div[aria-label="Crea un post"]',
+                        'div[aria-label="Create a post"]',
+                        'span:has-text("A cosa stai pensando")',
+                        'span:has-text("What\'s on your mind")',
+                    ]
+                    for sel in composers:
                         try:
-                            page.click(sel, timeout=4000)
-                            opened = True
-                            break
+                            loc = page.locator(sel).first
+                            if loc.count() > 0:
+                                loc.wait_for(state="visible", timeout=5000)
+                                loc.click(timeout=10000, force=True)
+                                print(f"[Facebook] Composer aperto con: {sel}")
+                                opened = True
+                                break
                         except Exception:
                             continue
+
                     if not opened:
-                        page.goto("https://www.facebook.com/", timeout=30000)
-                        time.sleep(3)
-                        page.click('div[aria-label*="Crea"], div[aria-label*="Create"]', timeout=5000)
-                    time.sleep(2)
-                    page.keyboard.type(msg, delay=35)
-                    time.sleep(1.5)
-                    posted = False
-                    for sel in ['div[aria-label="Pubblica"]', 'div[aria-label="Post"]', 'div[aria-label="Publish"]', 'div[role="button"]:has-text("Pubblica")', 'div[role="button"]:has-text("Post")']:
+                        print("[Facebook] Composer non trovato. Salto post.")
+                        page.screenshot(path=f"fb_no_composer_{i}.png")
+                        continue
+
+                    time.sleep(3)
+
+                    # Scrivi il messaggio nella casella di testo
+                    text_box = None
+                    for sel in [
+                        'div[role="textbox"]',
+                        'div[contenteditable="true"]',
+                        'div[aria-label*="messaggio"]',
+                        'div[aria-label*="message"]',
+                    ]:
                         try:
-                            page.click(sel, timeout=4000)
-                            posted = True
-                            break
+                            loc = page.locator(sel).first
+                            if loc.count() > 0:
+                                loc.wait_for(state="visible", timeout=5000)
+                                text_box = loc
+                                print(f"[Facebook] Textbox trovata: {sel}")
+                                break
                         except Exception:
                             continue
+
+                    if text_box is None:
+                        print("[Facebook] Textbox non trovata. Salto post.")
+                        page.screenshot(path=f"fb_no_textbox_{i}.png")
+                        continue
+
+                    text_box.click(timeout=8000)
+                    time.sleep(1)
+                    page.keyboard.type(msg, delay=35)
+                    time.sleep(2)
+
+                    # Cerca il bottone Pubblica
+                    posted = False
+                    post_buttons = [
+                        'div[aria-label="Pubblica"]',
+                        'div[aria-label="Post"]',
+                        'div[aria-label="Publish"]',
+                        'div[role="button"]:has-text("Pubblica")',
+                        'div[role="button"]:has-text("Post")',
+                        'div[role="button"]:has-text("Publish")',
+                    ]
+                    for sel in post_buttons:
+                        try:
+                            loc = page.locator(sel).first
+                            if loc.count() > 0:
+                                loc.wait_for(state="visible", timeout=5000)
+                                loc.click(timeout=10000, force=True)
+                                posted = True
+                                print(f"[Facebook] Click Pubblica con: {sel}")
+                                break
+                        except Exception:
+                            continue
+
                     if posted:
                         print(f"[Facebook] {i+1}/{count} postato")
                     else:
                         print(f"[Facebook] {i+1}/{count} bottone Pubblica non trovato")
+                        page.screenshot(path=f"fb_no_publish_{i}.png")
+
                 except Exception as e:
                     print(f"[Facebook] errore post: {e}")
+                    try:
+                        page.screenshot(path=f"fb_errore_{i}.png")
+                    except Exception:
+                        pass
                 time.sleep(random.uniform(delay_min, delay_max))
             browser.close()
         print("[Facebook] finito")
@@ -725,11 +798,14 @@ def follow_facebook_random(count=3, delay_min=60, delay_max=120):
             return
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
-            context = browser.new_context(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            context = browser.new_context(
+                viewport={"width": 1280, "height": 900},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            )
             context.add_cookies(fb_cookies)
             page = context.new_page()
-            page.goto("https://www.facebook.com/friends/suggestions", timeout=60000)
-            time.sleep(5)
+            page.goto("https://www.facebook.com/friends/suggestions", timeout=60000, wait_until="domcontentloaded")
+            time.sleep(6)
             page.keyboard.press("Escape")
             time.sleep(1)
             clicked = 0
@@ -742,7 +818,7 @@ def follow_facebook_random(count=3, delay_min=60, delay_max=120):
                     if clicked >= count:
                         break
                     try:
-                        btn.click(timeout=3000)
+                        btn.click(timeout=5000)
                         clicked += 1
                         print(f"[FB Follow random] azione #{clicked}")
                         time.sleep(random.uniform(delay_min, delay_max))
@@ -774,11 +850,14 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
-            context = browser.new_context(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            context = browser.new_context(
+                viewport={"width": 1280, "height": 900},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            )
             context.add_cookies(tiktok_cookies)
             page = context.new_page()
-            page.goto("https://www.tiktok.com/tiktokstudio/upload", timeout=60000)
-            time.sleep(6)
+            page.goto("https://www.tiktok.com/tiktokstudio/upload", timeout=60000, wait_until="domcontentloaded")
+            time.sleep(8)
             for _ in range(4):
                 try:
                     page.keyboard.press("Escape")
@@ -801,15 +880,16 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                             continue
                     if file_input is None:
                         print("[TikTok] input file non trovato. Salto.")
+                        page.screenshot(path=f"tiktok_no_input_{i}.png")
                         continue
                     file_input.set_input_files(video_path)
                     print("[TikTok] video caricato, attendo...")
-                    time.sleep(18)
+                    time.sleep(20)
                     page.keyboard.press("Escape")
                     time.sleep(1)
                     for sel in ['div[contenteditable="true"]', 'div[data-e2e="caption_container"] div[contenteditable]']:
                         try:
-                            page.click(sel, timeout=3000)
+                            page.click(sel, timeout=5000)
                             page.keyboard.type(random.choice(MESSAGES)[:150], delay=25)
                             break
                         except Exception:
@@ -828,7 +908,7 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                             for el in elements:
                                 text = (el.inner_text() or "").strip().lower()
                                 if text in ("post", "pubblica", "publish") or "post" in text:
-                                    el.click(force=True, timeout=5000)
+                                    el.click(force=True, timeout=8000)
                                     posted = True
                                     break
                             if posted:
@@ -839,8 +919,13 @@ def spam_tiktok_free(video_path="promo.mp4", count=1, delay=600):
                         print(f"[TikTok] {i+1}/{count} postato")
                     else:
                         print(f"[TikTok] {i+1}/{count} bottone Post non trovato")
+                        page.screenshot(path=f"tiktok_no_post_{i}.png")
                 except Exception as e:
                     print(f"[TikTok] errore post: {e}")
+                    try:
+                        page.screenshot(path=f"tiktok_errore_{i}.png")
+                    except Exception:
+                        pass
                 time.sleep(delay)
             browser.close()
         print("[TikTok] finito")
@@ -857,11 +942,14 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
             return
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
-            context = browser.new_context(viewport={"width": 1280, "height": 900}, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            context = browser.new_context(
+                viewport={"width": 1280, "height": 900},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            )
             context.add_cookies(tiktok_cookies)
             page = context.new_page()
-            page.goto("https://www.tiktok.com/foryou", timeout=60000)
-            time.sleep(5)
+            page.goto("https://www.tiktok.com/foryou", timeout=60000, wait_until="domcontentloaded")
+            time.sleep(6)
             clicked = 0
             for _ in range(count * 4):
                 if clicked >= count:
@@ -876,7 +964,7 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
                         txt = (loc.inner_text(timeout=1500) or "").lower()
                         if any(x in txt for x in ("following", "friends", "segui già")):
                             break
-                        loc.click(timeout=3000, force=True)
+                        loc.click(timeout=5000, force=True)
                         clicked += 1
                         print(f"[TT Follow random] follow #{clicked}")
                         time.sleep(random.uniform(delay_min, delay_max))
@@ -984,7 +1072,6 @@ if __name__ == "__main__":
             print(f"[{social}] errore critico: {e}")
             traceback.print_exc()
 
-        # Passa al social successivo
         indice = (indice + 1) % len(socials)
         ciclo += 1
 
