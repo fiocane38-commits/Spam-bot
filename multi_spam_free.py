@@ -700,17 +700,22 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                     except Exception:
                         pass
 
+                    # Apri composer - più selettori
                     opened = False
                     composers = [
                         'div[role="button"]:has-text("A cosa stai pensando")',
                         'div[role="button"]:has-text("What\'s on your mind")',
                         'div[role="button"]:has-text("Crea un post")',
                         'div[role="button"]:has-text("Create a post")',
+                        'div[role="button"]:has-text("Crea post")',
                         'span:has-text("A cosa stai pensando")',
                         'span:has-text("What\'s on your mind")',
                         'div[aria-label*="Crea un post"]',
                         'div[aria-label*="Create a post"]',
+                        'div[aria-label*="A cosa stai pensando"]',
+                        'div[aria-label*="What\'s on your mind"]',
                         'div[data-pagelet="FeedUnit"] div[role="button"]',
+                        'div[data-pagelet="FeedUnit"] div[aria-label]',
                     ]
                     for sel in composers:
                         try:
@@ -730,12 +735,16 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
                     time.sleep(5)
 
+                    # Trova textbox - più selettori
                     text_box = None
                     for sel in [
                         'div[role="textbox"]',
                         'div[contenteditable="true"]',
                         'div[aria-label*="messaggio"]',
                         'div[aria-label*="message"]',
+                        'div[aria-label*="A cosa stai pensando"]',
+                        'div[aria-label*="What\'s on your mind"]',
+                        'div[data-lexical-editor="true"]',
                     ]:
                         try:
                             loc = page.locator(sel).first
@@ -755,6 +764,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                             pass
                         continue
 
+                    # Click con fallback
                     try:
                         text_box.click(timeout=5000)
                         print("[Facebook] Click normale sulla textbox")
@@ -772,6 +782,7 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
 
                     time.sleep(1)
 
+                    # Scrivi con JS
                     try:
                         text_box.evaluate(
                             "(el, text) => { el.focus(); el.innerText = text; el.dispatchEvent(new Event('input', {bubbles: true})); }",
@@ -786,16 +797,51 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         except Exception as e2:
                             print(f"[Facebook] Errore digitazione: {e2}")
 
-                    time.sleep(2)
+                    time.sleep(3)
 
+                    # Screenshot prima di cercare Pubblica
+                    try:
+                        page.screenshot(path=f"fb_before_publish_{i}.png")
+                        print(f"[Facebook] Screenshot: fb_before_publish_{i}.png")
+                    except Exception:
+                        pass
+
+                    # Cerca il bottone Pubblica con MOLTI selettori
                     posted = False
-                    for sel in [
+                    post_buttons = [
+                        # Italiano - aria-label
                         'div[aria-label="Pubblica"]',
+                        'div[aria-label="Pubblica post"]',
+                        'div[aria-label="Pubblica adesso"]',
+                        # Italiano - role button con testo
+                        'div[role="button"]:has-text("Pubblica")',
+                        'div[role="button"]:has-text("Pubblica post")',
+                        'div[role="button"]:has-text("Pubblica adesso")',
+                        # Inglese - aria-label
                         'div[aria-label="Post"]',
                         'div[aria-label="Publish"]',
-                        'div[role="button"]:has-text("Pubblica")',
+                        'div[aria-label="Post now"]',
+                        # Inglese - role button con testo
                         'div[role="button"]:has-text("Post")',
-                    ]:
+                        'div[role="button"]:has-text("Publish")',
+                        'div[role="button"]:has-text("Post now")',
+                        # Generico - qualsiasi bottone con testo
+                        'div[role="button"][aria-label*="Pubblica"]',
+                        'div[role="button"][aria-label*="Post"]',
+                        'div[role="button"][aria-label*="Publish"]',
+                        # Fallback: ultimo bottone del dialog
+                        'div[role="dialog"] div[role="button"]:last-child',
+                        'div[role="dialog"] div[aria-label="Pubblica"]',
+                        'div[role="dialog"] div[aria-label="Post"]',
+                        'div[role="dialog"] div[aria-label="Publish"]',
+                        # Fallback: qualsiasi span con testo Pubblica
+                        'span:has-text("Pubblica")',
+                        'span:has-text("Post")',
+                        # Fallback: cerca il bottone con sfondo blu
+                        'div[role="dialog"] div[style*="background-color: rgb(24, 119, 242)"]',
+                        'div[role="dialog"] div[style*="background-color: #1877F2"]',
+                    ]
+                    for sel in post_buttons:
                         try:
                             loc = page.locator(sel).first
                             if loc.count() > 0:
@@ -811,6 +857,11 @@ def spam_facebook_free(count=1, delay_min=180, delay_max=400):
                         print(f"[Facebook] {i+1}/{count} postato")
                     else:
                         print(f"[Facebook] {i+1}/{count} bottone Pubblica non trovato")
+                        try:
+                            page.screenshot(path=f"fb_no_publish_{i}.png")
+                            print(f"[Facebook] Screenshot: fb_no_publish_{i}.png")
+                        except Exception:
+                            pass
 
                 except Exception as e:
                     print(f"[Facebook] errore post: {e}")
