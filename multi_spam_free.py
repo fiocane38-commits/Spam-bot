@@ -805,43 +805,45 @@ def follow_tiktok_random(count=3, delay_min=50, delay_max=100):
 # MAIN - LOOP CONTINUO CON UN SOCIAL PER CICLO
 # ============================================================
 if __name__ == "__main__":
-    print("=== MAIN INIZIATO ===")
     import threading
-    from http.server import BaseHTTPRequestHandler, HTTPServer
+    import http.server
+    import socketserver
 
-    print("=== IMPORT COMPLETATI ===")
+    PORT = int(os.environ.get("PORT", 10000))
 
-    def _health():
-        port = int(os.environ.get("PORT", 10000))
-        print(f"[Health] Tentativo di avvio su 0.0.0.0:{port}")
+    # ---- Server HTTP di health check ----
+    class HealthHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"ok")
 
-        class H(BaseHTTPRequestHandler):
-            def do_GET(self):
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write(b"ok")
-            def do_HEAD(self):
-                self.send_response(200)
-                self.end_headers()
-            def log_message(self, *args):
-                pass
+        def do_HEAD(self):
+            self.send_response(200)
+            self.end_headers()
 
+        def log_message(self, *args):
+            pass
+
+    def start_health_server():
         try:
-            server = HTTPServer(("0.0.0.0", port), H)
-            print(f"[Health] in ascolto su 0.0.0.0:{port}")
-            server.serve_forever()
+            with socketserver.TCPServer(("0.0.0.0", PORT), HealthHandler) as httpd:
+                print(f"[Health] Server in ascolto su porta {PORT}")
+                httpd.serve_forever()
         except Exception as e:
             print(f"[Health] ERRORE: {e}")
-            traceback.print_exc()
 
-    print("=== AVVIO THREAD HEALTH ===")
-    threading.Thread(target=_health, daemon=True).start()
-    time.sleep(2)
+    # Avvia il server HTTP in un thread daemon
+    health_thread = threading.Thread(target=start_health_server, daemon=True)
+    health_thread.start()
 
+    # NON aspettare: parti SUBITO con il bot
     print("=== BOT MULTI-SOCIAL ATTIVO ===")
+    print(f"=== PORT={PORT} - Il server HTTP è in un thread separato ===")
     print("Ctrl+C per fermarlo\n")
 
-    # Ciclo: un solo social per volta per risparmiare RAM
+    # Ciclo: un solo social per volta
     socials = ["x", "reddit", "discord", "facebook", "tiktok", "instagram"]
     indice = 0
     ciclo = 1
@@ -853,9 +855,9 @@ if __name__ == "__main__":
         try:
             if social == "x":
                 print("--- X POST ---")
-                run_spam_in_thread(spam_x_free, count=1, delay_min=90, delay_max=180)
+                run_spam_in_thread(spam_x_free, count=1, delay_min=30, delay_max=60)
                 print("--- X FOLLOW ---")
-                run_spam_in_thread(follow_x_random, count=3)
+                run_spam_in_thread(follow_x_random, count=3, delay_min=15, delay_max=30)
 
             elif social == "reddit":
                 print("--- REDDIT ---")
@@ -864,6 +866,7 @@ if __name__ == "__main__":
                     subreddits=random.sample(REDDIT_SUB_POOL, k=min(1, len(REDDIT_SUB_POOL))),
                     title="Nuova community + bot",
                     body=PROMO_TEXT,
+                    delay=120,
                 )
 
             elif social == "discord":
@@ -872,30 +875,29 @@ if __name__ == "__main__":
 
             elif social == "facebook":
                 print("--- FACEBOOK ---")
-                run_spam_in_thread(spam_facebook_free, count=1)
+                run_spam_in_thread(spam_facebook_free, count=1, delay_min=60, delay_max=120)
                 print("--- FB FOLLOW ---")
-                run_spam_in_thread(follow_facebook_random, count=2)
+                run_spam_in_thread(follow_facebook_random, count=2, delay_min=30, delay_max=60)
 
             elif social == "tiktok":
                 print("--- TIKTOK ---")
-                run_spam_in_thread(spam_tiktok_free, video_path="promo.mp4", count=1)
+                run_spam_in_thread(spam_tiktok_free, video_path="promo.mp4", count=1, delay=120)
                 print("--- TT FOLLOW ---")
-                run_spam_in_thread(follow_tiktok_random, count=2)
+                run_spam_in_thread(follow_tiktok_random, count=2, delay_min=30, delay_max=60)
 
             elif social == "instagram":
                 print("--- INSTAGRAM ---")
-                run_spam_in_thread(spam_instagram, count=1)
+                run_spam_in_thread(spam_instagram, count=1, delay=120)
                 print("--- IG FOLLOW ---")
-                run_spam_in_thread(follow_instagram_random, count=3)
+                run_spam_in_thread(follow_instagram_random, count=3, delay_min=20, delay_max=40)
 
         except Exception as e:
             print(f"[{social}] errore critico: {e}")
             traceback.print_exc()
 
-        # Passa al social successivo
         indice = (indice + 1) % len(socials)
         ciclo += 1
 
         print(f"\n=== Fine ciclo {ciclo-1} ===")
-        print("Aspetto 5 minuti...\n")
-        time.sleep(300)
+        print("Aspetto 30 secondi...\n")
+        time.sleep(30)
