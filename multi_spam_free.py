@@ -902,7 +902,6 @@ if __name__ == "__main__":
 
     PORT = int(os.environ.get("PORT", 10000))
 
-    # ---- Server HTTP di health check ----
     class HealthHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
@@ -933,8 +932,8 @@ if __name__ == "__main__":
     print(f"=== PORT={PORT} - Il server HTTP è in un thread separato ===")
     print("Ctrl+C per fermarlo\n")
 
-    # Ciclo: un solo social per volta
-    socials = ["x", "reddit", "discord", "facebook", "tiktok", "instagram"]
+    # Ciclo: UN SOLO social per ciclo, ruota su tutti
+    socials = ["facebook", "tiktok", "instagram", "reddit", "discord", "x"]
     indice = 0
     ciclo = 1
 
@@ -985,6 +984,7 @@ if __name__ == "__main__":
             print(f"[{social}] errore critico: {e}")
             traceback.print_exc()
 
+        # Passa al social successivo
         indice = (indice + 1) % len(socials)
         ciclo += 1
 
