@@ -205,7 +205,7 @@ def run_spam_in_thread(func, *args, **kwargs):
         print(f"[Thread] Timeout per {func.__name__} (180s)")
 
 # ============================================================
-# X
+# X (con SELETTORI ALTERNATIVI)
 # ============================================================
 def spam_x_free(count=1, delay_min=90, delay_max=180):
     print("[X] inizio...")
@@ -257,8 +257,35 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                         print(f"[X] Timeout su /compose/post: {e}")
                         continue
 
-                    time.sleep(6)
+                    # Aspetta che la pagina sia pronta con più selettori
+                    page_ready = False
+                    for sel in [
+                        'div[data-testid="tweetTextarea_0"]',
+                        'div[role="textbox"]',
+                        'div[contenteditable="true"]',
+                        '[data-testid="primaryColumn"]',
+                        'div[aria-label*="Post"]',
+                        'div[aria-label*="Tweet"]',
+                    ]:
+                        try:
+                            page.wait_for_selector(sel, timeout=8000)
+                            print(f"[X] Pagina composer pronta (trovato: {sel})")
+                            page_ready = True
+                            break
+                        except Exception:
+                            continue
 
+                    if not page_ready:
+                        print("[X] Pagina composer non caricata. Salto post.")
+                        try:
+                            page.screenshot(path=f"x_no_composer_{i}.png")
+                        except Exception:
+                            pass
+                        continue
+
+                    time.sleep(3)
+
+                    # Chiudi popup
                     for _ in range(3):
                         try:
                             page.keyboard.press("Escape")
@@ -266,27 +293,45 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                         except Exception:
                             pass
 
+                    # Trova la casella di testo con più selettori
                     box = None
                     for sel in [
                         'div[data-testid="tweetTextarea_0"]',
                         'div[role="textbox"]',
                         'div[contenteditable="true"]',
+                        'div[aria-label="Post text"]',
+                        'div[aria-label="Testo del post"]',
+                        'div[aria-label="Tweet text"]',
+                        'div[data-testid="tweetTextarea_0RichTextInputContainer"]',
+                        'div.public-DraftEditor-content',
+                        'div[data-contents="true"]',
                     ]:
                         try:
                             loc = page.locator(sel).first
-                            if loc.count() > 0:
-                                loc.wait_for(state="visible", timeout=8000)
+                            if loc.count() > 0 and loc.is_visible():
                                 box = loc
-                                print(f"[X] Selettore trovato: {sel}")
+                                print(f"[X] Casella trovata con: {sel}")
                                 break
                         except Exception:
                             continue
 
                     if box is None:
-                        print("[X] Nessun selettore trovato. Salto post.")
+                        print("[X] Nessuna casella di testo trovata. Salto post.")
+                        try:
+                            page.screenshot(path=f"x_no_box_{i}.png")
+                        except Exception:
+                            pass
                         continue
 
-                    box.click(timeout=8000)
+                    # Click e scrivi
+                    try:
+                        box.click(timeout=8000)
+                    except Exception:
+                        try:
+                            box.click(force=True, timeout=8000)
+                        except Exception:
+                            box.evaluate("el => el.click()")
+
                     time.sleep(1)
                     page.keyboard.press("Control+A")
                     page.keyboard.press("Backspace")
@@ -294,23 +339,33 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                     page.keyboard.type(msg, delay=50)
                     time.sleep(2)
 
+                    # Trova il bottone Post con più selettori
                     btn = None
                     for sel in [
                         'button[data-testid="tweetButtonInline"]',
                         'button[data-testid="tweetButton"]',
-                        'button:has-text("Post")',
+                        'button[aria-label="Post"]',
+                        'button[aria-label="Pubblica"]',
+                        'button[aria-label="Tweet"]',
+                        'div[role="button"][data-testid*="tweetButton"]',
+                        'div[role="button"]:has-text("Post")',
+                        'div[role="button"]:has-text("Pubblica")',
+                        'div[role="button"]:has-text("Tweet")',
+                        'span:has-text("Post")',
+                        'span:has-text("Pubblica")',
                     ]:
                         try:
                             loc = page.locator(sel).first
-                            if loc.count() > 0:
+                            if loc.count() > 0 and loc.is_visible():
                                 btn = loc
+                                print(f"[X] Bottone trovato con: {sel}")
                                 break
                         except Exception:
                             continue
 
                     if btn is None:
+                        print("[X] Bottone Post non trovato. Provo Ctrl+Enter")
                         page.keyboard.press("Control+Enter")
-                        print("[X] Fallback Ctrl+Enter")
                     else:
                         enabled = False
                         for _ in range(10):
@@ -323,15 +378,29 @@ def spam_x_free(count=1, delay_min=90, delay_max=180):
                                 pass
                             time.sleep(1)
                         if enabled:
-                            btn.click(timeout=8000)
-                            print("[X] Click Post")
+                            try:
+                                btn.click(timeout=8000)
+                                print("[X] Click Post")
+                            except Exception:
+                                try:
+                                    btn.click(force=True, timeout=8000)
+                                    print("[X] Click force=True")
+                                except Exception:
+                                    page.keyboard.press("Control+Enter")
+                                    print("[X] Fallback Ctrl+Enter")
                         else:
                             page.keyboard.press("Control+Enter")
+                            print("[X] Bottone disabilitato - Ctrl+Enter")
 
                     time.sleep(5)
                     print(f"[X] {i+1}/{count} ok")
+
                 except Exception as e:
                     print(f"[X] errore post: {e}")
+                    try:
+                        page.screenshot(path=f"x_errore_{i}.png")
+                    except Exception:
+                        pass
                 time.sleep(random.uniform(delay_min, delay_max))
             print("[X] Chiudo browser...")
             try:
